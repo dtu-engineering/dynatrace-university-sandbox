@@ -61,4 +61,4 @@
 
 - name: Pause for otel deployment
   pause:
-    seconds: 300
+    seconds: 180

@@ -78,4 +78,4 @@
 
 - name: Pause for easytrade to settle
   pause:
-    seconds: 300
+    seconds: 180

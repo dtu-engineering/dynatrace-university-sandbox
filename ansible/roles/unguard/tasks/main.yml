@@ -54,19 +54,6 @@
   register: unguard_install
   changed_when: "'STATUS: deployed' in unguard_install.stdout or 'STATUS: upgraded' in unguard_install.stdout"
 
-# - name: Install Unguard Helm chart
-#   ansible.builtin.shell: |
-#     helm upgrade --install unguard \
-#       oci://ghcr.io/dynatrace-oss/unguard/chart/unguard \
-#       --namespace unguard \
-#       --create-namespace \
-#       --wait \
-#       --timeout 15m
-#   environment: 
-#     KUBECONFIG: "{{ kubeconfig_path }}"
-#   register: unguard_install
-#   changed_when: "'STATUS: deployed' in unguard_install.stdout or 'STATUS: upgraded' in unguard_install.stdout"
-
 - name: Ensure ingress directory exists
   ansible.builtin.file:
     path: "{{ role_path }}/files/kubernetes-manifests/ingress"
