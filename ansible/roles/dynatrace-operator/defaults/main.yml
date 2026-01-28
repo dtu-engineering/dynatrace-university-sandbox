@@ -1,0 +1,7 @@
+---
+dt_operator_release: "v1.7.3" # https://github.com/Dynatrace/dynatrace-operator/releases/tag/v1.7.3
+dt_operator_namespace: "dynatrace"
+dt_operator_dt_access_token_name: "Dynatrace-Operator-Token"
+dt_operator_dt_data_ingest_token_name: "Dynatrace-Operator-Data-Ingest-Token"
+dt_dynakube_api_version: "dynatrace.com/v1beta5" # https://docs.dynatrace.com/docs/ingest-from/setup-on-k8s/reference/dynakube-parameters
+dt_host_group: "DTU-Dynatrace-Sandbox-HG"

@@ -1,0 +1,20 @@
+---
+- name: Dynatrace University Sandbox
+  hosts: localhost
+  connection: local
+  vars_files: 
+    - ./ansible_config_vars.yml
+  tasks:
+    - include_role:
+        name: kubernetes
+    - include_role:
+        name: dynatrace-operator
+      when: dynatrace_deployment_method == "operator"
+    - include_role:
+        name: dynatrace-settings
+    - include_role:
+        name: easytrade
+    - include_role:
+        name: opentelemetry-demo
+    - include_role:
+        name: unguard

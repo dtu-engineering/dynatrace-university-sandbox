@@ -1,0 +1,134 @@
+---
+# https://docs.dynatrace.com/docs/ingest-from/setup-on-k8s/deployment/full-stack-observability#manifest 
+
+- name: Create Dynatrace Operator Token
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
+    method: POST
+    status_code: [200, 201]
+    body:
+      name: "{{ dt_operator_dt_access_token_name }}"
+      scopes:
+        - DataExport
+        - InstallerDownload
+        - activeGateTokenManagement.create
+        - entities.read
+        - settings.read
+        - settings.write
+    body_format: json
+    headers:
+      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+  register: dynatrace_operator_token_result
+
+- name: Create Dynatrace Data Ingest Token
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
+    method: POST
+    status_code: [200, 201]
+    body:
+      name: "{{ dt_operator_dt_data_ingest_token_name }}"
+      scopes:
+        - metrics.ingest
+        - logs.ingest
+        - openTelemetryTrace.ingest
+    body_format: json
+    headers:
+      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+  register: dynatrace_data_ingest_token_result
+
+- name: Create Dynatrace namespace
+  command: |
+    kubectl create namespace {{ dt_operator_namespace }}
+  register: dt_ns_result
+  failed_when: dt_ns_result.rc != 0 and "AlreadyExists" not in dt_ns_result.stderr
+
+- name: Ensure operator files directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files"
+    state: directory
+    mode: "0755"
+
+- name: Download Dynatrace Operator with CSI manifest
+  ansible.builtin.get_url:
+    url: "https://github.com/Dynatrace/dynatrace-operator/releases/download/{{ dt_operator_release }}/kubernetes-csi.yaml"
+    dest: "{{ role_path }}/files/kubernetes-csi.yaml"
+    mode: '0664'
+
+- name: Apply Dynatrace Operator CSI manifest
+  shell: |
+    kubectl apply -f "{{ role_path }}/files/kubernetes-csi.yaml"
+  register: dynatrace_operator_csi
+  retries: 20
+  delay: 5
+  until: dynatrace_operator_csi.rc == 0
+
+- name: Create Dynatrace dynakube secret
+  shell: >
+    kubectl -n dynatrace create secret generic dynakube
+    --from-literal="apiToken={{ dynatrace_operator_token_result.json.token }}"
+    --from-literal="dataIngestToken={{ dynatrace_data_ingest_token_result.json.token }}"
+  register: dynakube_secret
+  failed_when: > 
+    dynakube_secret.rc != 0 and 
+    "already exists" not in dynakube_secret.stderr
+  retries: 15
+  delay: 10
+  changed_when: "'already exists' not in dynakube_secret.stderr"
+
+- name: Ensure operator files directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/operator"
+    state: directory
+    mode: "0755"
+
+- name: Template cloudNativeFullStack Dynakube manifest
+  ansible.builtin.template:
+    src: "cloudNativeFullStack.yaml.j2"
+    dest: "{{ role_path }}/files/cloudNativeFullStack.yaml"
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0644"
+
+- name: Apply cloudNativeFullStack manifest
+  shell: |
+    kubectl apply -f "{{ role_path }}/files/cloudNativeFullStack.yaml"
+  register: dt_operator_cloud_native_full_stack_result
+  retries: 15
+  delay: 5
+  until: dt_operator_cloud_native_full_stack_result.rc == 0
+
+- name: Wait minimum 1 OneAgent pod to be created
+  shell: |
+    kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent --no-headers | wc -l
+  register: oneagent_count
+  retries: 20
+  delay: 20
+  until: oneagent_count.stdout | int > 0
+
+- name: Wait for at least one ActiveGate pod to be created
+  shell: |
+    kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate --no-headers | wc -l
+  register: activegate_count
+  retries: 15
+  delay: 30
+  until: activegate_count.stdout | int > 0
+
+- name: Ensure all OneAgent pods are Running and Ready
+  shell: |
+    kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent -o json \
+    | jq '[.items[] | select(.status.phase=="Running") 
+           | select(all(.status.containerStatuses[]; .ready==true))] | length'
+  register: oneagent_ready
+  retries: 15
+  delay: 30
+  until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
+
+- name: Ensure all ActiveGate pods are Running and Ready
+  shell: |
+    kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate -o json \
+    | jq '[.items[] | select(.status.phase=="Running") 
+           | select(all(.status.containerStatuses[]; .ready==true))] | length'
+  register: activegate_ready
+  retries: 15
+  delay: 30
+  until: activegate_ready.stdout | int == (activegate_count.stdout | int)

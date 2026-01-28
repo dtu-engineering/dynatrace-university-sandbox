@@ -1,0 +1,10 @@
+annotations:
+  licenses: Apache-2.0
+apiVersion: v2
+appVersion: 0.13.0
+description: Unguard is an insecure cloud-native microservices demo application.
+home: https://github.com/dynatrace-oss/unguard
+icon: https://github.com/dynatrace-oss/unguard/blob/main/docs/images/logo/unguard-logo-red-small.png
+name: unguard
+type: application
+version: 0.13.0
