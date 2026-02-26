@@ -1,0 +1,6 @@
+---
+vscode_domain: "vscode.{{ ingress_domain }}"
+vscode_namespace: "vscode"
+vscode_password: "{{ instance_password }}"
+vscode_extensions:
+  - "/mnt/volume/extensions/dynatrace.dynatrace-debugging-extension-2.3.0.vsix"

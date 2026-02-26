@@ -1,0 +1,48 @@
+---
+
+- name: Ensure vscode namespace exists
+  shell: |
+    kubectl get namespace "{{ vscode_namespace }}" || kubectl create namespace "{{ vscode_namespace }}"
+  register: vscode_ns
+  changed_when: "'created' in vscode_ns.stdout"
+
+- name: Template vscode auth secret manifest
+  template:
+    src: "{{ role_path }}/templates/vscode-auth-secret.yaml.j2"
+    dest: "{{ role_path }}/files/vscode-auth-secret.yaml"
+    mode: "0600"
+  no_log: true
+
+- name: Apply vscode auth secret manifest
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/vscode-auth-secret.yaml" -n "{{ vscode_namespace }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: vscode_secret_apply
+  changed_when: >
+    'configured' in vscode_secret_apply.stdout or
+    'created' in vscode_secret_apply.stdout
+
+
+- name: Template vscode-values 
+  template:
+    src: "{{ role_path }}/templates/vscode-values.yaml.j2"
+    dest: "{{ role_path }}/files/vscode-values.yaml"
+    mode: "0644"
+
+# https://coder.com/docs/code-server/install#helm
+- name: Install Local VSCode Helm chart
+  ansible.builtin.shell: |
+    helm upgrade --install vscode \
+      {{ role_path }}/files/helm-chart \
+      --namespace "{{ vscode_namespace }}" \
+      --create-namespace \
+      --wait \
+      --timeout 30m \
+      -f "{{ role_path }}/files/vscode-values.yaml"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: vscode_install
+  changed_when: >
+    'STATUS: deployed' in vscode_install.stdout or
+    'STATUS: upgraded' in vscode_install.stdout
