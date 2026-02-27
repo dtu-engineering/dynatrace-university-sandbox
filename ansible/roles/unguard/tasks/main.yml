@@ -1,21 +1,5 @@
 ---
 
-- name: Download Helm install script
-  ansible.builtin.shell: |
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
-  args:
-    creates: get_helm.sh
-
-- name: Make Helm install script executable
-  ansible.builtin.file:
-    path: get_helm.sh
-    mode: "0700"
-
-- name: Install Helm
-  ansible.builtin.shell: ./get_helm.sh
-  args:
-    creates: /usr/local/bin/helm
-
 - name: Ensure unguard namespace exists
   ansible.builtin.shell: |
     kubectl get namespace unguard || kubectl create namespace unguard

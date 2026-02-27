@@ -6,7 +6,7 @@ The **Dynatrace University Sandbox** provisions a fully functional, ready‑to�
 
 ## Included Applications
 
-### 🧩 Core Components
+### Core Components
 - **Kubernetes**  
 Lightweight Kubernetes distribution | [docs](https://docs.k3s.io/)
 
@@ -15,7 +15,7 @@ Lightweight Kubernetes distribution | [docs](https://docs.k3s.io/)
 Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [docs](https://github.com/Dynatrace/dynatrace-operator)
 
 
-### 🧪 Demo Applications
+### Demo Applications
 - **Easytrade**  
   Easytrade is a Dynatrace microservices‑based trading demo application | [docs](https://github.com/Dynatrace/easytrade)
 
@@ -25,6 +25,8 @@ Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [
 - **Unguard**  
   A Dynatrace open-source and security‑focused demo application used for vulnerability and runtime analysis scenarios | [docs](https://github.com/dynatrace-oss/unguard)
 
+- **VSCode (code-server)**  
+  A fully functional Visual Studio Code application running in a web browser with the supporting Dynatrace Debugging Extension installed  | [docs](https://coder.com/docs/code-server/guide) | [extension docs](https://docs.dynatrace.com/docs/observe/application-observability/live-debugger/ide-integration)
 
 ## Dynatrace Configuration
 
@@ -48,3 +50,5 @@ The sandbox automatically applies several Dynatrace tenant settings to ensure a 
 | Easytrade                           | [v1.3.0](https://github.com/Dynatrace/easytrade/releases/tag/v1.3.0)    |
 | OpenTelemetry Demo                  | [2.2.0](https://github.com/open-telemetry/opentelemetry-demo/releases/tag/2.2.0)     |
 | Unguard                             | [v0.13.0](https://github.com/dynatrace-oss/unguard/releases/tag/v0.13.0)   |
+| VSCode (code-server)                | [v4.109.2](https://github.com/coder/code-server/releases/tag/v4.109.2)   |
+| Dynatrace Debugging Extension       | [v2.3.0](https://marketplace.visualstudio.com/items?itemName=dynatrace.dynatrace-debugging-extension)   |
