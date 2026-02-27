@@ -47,29 +47,6 @@
     group: root
     mode: '0644'
 
-
-# - name: Ensure Traefik hostPort configuration is present
-#   copy:
-#     dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
-#     owner: root
-#     group: root
-#     mode: '0644'
-#     content: |
-#       apiVersion: helm.cattle.io/v1
-#       kind: HelmChartConfig
-#       metadata:
-#         name: traefik
-#         namespace: kube-system
-#       spec:
-#         valuesContent: |-
-#           ports:
-#             web:
-#               port: 80
-#               hostPort: 80
-#             websecure:
-#               port: 443
-#               hostPort: 443
-
 ################
 # Docker Tasks #
 ################
@@ -135,6 +112,26 @@
   systemd:
     name: docker
     enabled: yes
+
+#################
+#   Helm Tasks  #
+#################
+
+- name: Download Helm install script
+  ansible.builtin.shell: |
+    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
+  args:
+    creates: get_helm.sh
+
+- name: Make Helm install script executable
+  ansible.builtin.file:
+    path: get_helm.sh
+    mode: "0700"
+
+- name: Install Helm
+  ansible.builtin.shell: ./get_helm.sh
+  args:
+    creates: /usr/local/bin/helm
 
 #################
 # Restart Tasks #
