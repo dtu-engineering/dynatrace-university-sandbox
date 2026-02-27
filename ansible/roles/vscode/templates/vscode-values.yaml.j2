@@ -1,4 +1,5 @@
 existingSecret: vscode-auth
+
 ingress:
   enabled: true
   hosts:
@@ -6,11 +7,32 @@ ingress:
       paths:
         - /
   ingressClassName: traefik
+
 extraVolumeMounts:
   - name: extra-volume
     mountPath: /mnt/volume
     readOnly: true
     hostPath: "{{ role_path }}/files/vscode"
+  - name: {{ instance_user }}-home
+    mountPath: /home/{{ instance_user }}
+    readOnly: false
+
+extraArgs:
+  - /home/{{ instance_user }}
+
+securityContext:
+  enabled: true
+  runAsUser: {{ instance_user_uid }}
+  runAsGroup: {{ instance_user_gid }}
+  fsGroup: {{ instance_user_gid }}
+
+volumePermissions:
+  enabled: false
+
+extraVars:
+  - name: HOME
+    value: "{{ instance_user_home }}"
+
 extraInitContainers: |
   - name: customization
     image: {{ '{{' }} .Values.image.repository {{ '}}' }}:{{ '{{' }}  .Values.image.tag {{ '}}' }}
@@ -30,3 +52,5 @@ extraInitContainers: |
         mountPath: /home/coder
       - name: extra-volume
         mountPath: /mnt/volume
+      - name: home
+        mountPath: /home/{{ instance_user }}

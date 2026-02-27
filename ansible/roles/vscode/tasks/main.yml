@@ -1,10 +1,35 @@
 ---
 
+- name: Get instance user UID
+  ansible.builtin.command: "id -u {{ instance_user }}"
+  register: uid
+  changed_when: false
+  become: true
+
+- name: Get instance user GID
+  ansible.builtin.command: "id -g {{ instance_user }}"
+  register: gid
+  changed_when: false
+  become: true
+
+- name: Set facts
+  ansible.builtin.set_fact:
+    instance_user_uid: "{{ uid.stdout | int }}"
+    instance_user_gid: "{{ gid.stdout | int }}"
+    instance_user_home: "/home/{{ instance_user }}"
+  changed_when: false
+
 - name: Ensure vscode namespace exists
-  shell: |
-    kubectl get namespace "{{ vscode_namespace }}" || kubectl create namespace "{{ vscode_namespace }}"
-  register: vscode_ns
-  changed_when: "'created' in vscode_ns.stdout"
+  ansible.builtin.command: kubectl get namespace "{{ vscode_namespace }}"
+  register: vscode_ns_get
+  changed_when: false
+  failed_when: false
+
+- name: Create vscode namespace if missing
+  ansible.builtin.command: kubectl create namespace "{{ vscode_namespace }}"
+  when: vscode_ns_get.rc != 0
+  register: vscode_ns_create
+  changed_when: vscode_ns_create.rc == 0
 
 - name: Template vscode auth secret manifest
   template:
