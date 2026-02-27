@@ -13,7 +13,7 @@ extraVolumeMounts:
     mountPath: /mnt/volume
     readOnly: true
     hostPath: "{{ role_path }}/files/vscode"
-  - name: {{ instance_user }}-home
+  - name: user-home
     mountPath: /home/{{ instance_user }}
     readOnly: false
 
