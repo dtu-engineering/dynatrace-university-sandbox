@@ -1,5 +1,5 @@
 ---
-- name: Dynatrace University Sandbox
+- name: Dynatrace University Sandbox - Core
   hosts: localhost
   connection: local
   vars_files: 
@@ -9,14 +9,7 @@
         name: kubernetes
     - include_role:
         name: dynatrace-operator
-      when: dynatrace_deployment_method == "operator"
     - include_role:
         name: dynatrace-settings
     - include_role:
         name: vscode
-    - include_role:
-        name: easytrade
-    - include_role:
-        name: opentelemetry-demo
-    - include_role:
-        name: unguard

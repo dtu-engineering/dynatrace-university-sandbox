@@ -1,7 +1,10 @@
 # Dynatrace University Sandbox
 
 ## Overview
-The **Dynatrace University Sandbox** provisions a fully functional, ready‑to‑use sandbox environment designed to accompany the **Dynatrace University Sandbox** Aether module. It includes multiple demo applications, automatic Dynatrace instrumentation, and preconfigured Dynatrace tenant settings delivering a fully observable and operational environment out of the box.
+The **Dynatrace University Sandbox** provisions a fully functional, ready‑to‑use sandbox environment. It includes multiple demo applications, automatic Dynatrace instrumentation, and preconfigured Dynatrace tenant settings delivering a fully observable and operational environment out of the box. 
+
+### Optional:
+There are 3 supported
 
 
 ## Included Applications
