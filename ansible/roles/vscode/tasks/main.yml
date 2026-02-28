@@ -1,95 +1,68 @@
 ---
 
-- name: Get instance user UID
-  ansible.builtin.command: "id -u {{ instance_user }}"
-  register: uid
-  changed_when: false
+# https://coder.com/docs/code-server/install#standalone-releases
+- name: Source code-server deb
+  ansible.builtin.get_url:
+    url: "https://github.com/coder/code-server/releases/download/v{{vscode_version}}/code-server_{{vscode_version}}_amd64.deb"
+    dest: /tmp/code-server_{{vscode_version}}_amd64.deb
+
+- name: Install code-server deb
   become: true
+  ansible.builtin.apt:
+    deb: "/tmp/code-server_{{ vscode_version }}_amd64.deb"
+    state: present
 
-- name: Get instance user GID
-  ansible.builtin.command: "id -g {{ instance_user }}"
-  register: gid
-  changed_when: false
+- name: Enable and start code-server service
   become: true
-
-- name: Set facts
-  ansible.builtin.set_fact:
-    instance_user_uid: "{{ uid.stdout | int }}"
-    instance_user_gid: "{{ gid.stdout | int }}"
-    instance_user_home: "/home/{{ instance_user }}"
-  changed_when: false
-
-- name: Ensure vscode namespace exists
-  ansible.builtin.command: kubectl get namespace "{{ vscode_namespace }}"
-  register: vscode_ns_get
-  changed_when: false
-  failed_when: false
-
-- name: Create vscode namespace if missing
-  ansible.builtin.command: kubectl create namespace "{{ vscode_namespace }}"
-  when: vscode_ns_get.rc != 0
-  register: vscode_ns_create
-  changed_when: vscode_ns_create.rc == 0
-
-- name: Template vscode auth secret manifest
-  template:
-    src: "{{ role_path }}/templates/vscode-auth-secret.yaml.j2"
-    dest: "{{ role_path }}/files/vscode-auth-secret.yaml"
-    mode: "0600"
-  no_log: true
-
-- name: Apply vscode auth secret manifest
   ansible.builtin.shell: |
-    kubectl apply -f "{{ role_path }}/files/vscode-auth-secret.yaml" -n "{{ vscode_namespace }}"
-  environment:
-    KUBECONFIG: "{{ kubeconfig_path }}"
-  register: vscode_secret_apply
-  changed_when: >
-    'configured' in vscode_secret_apply.stdout or
-    'created' in vscode_secret_apply.stdout
+    systemctl enable code-server@{{ instance_user }}
+    systemctl start code-server@{{ instance_user }}
 
+- name: Configure VSCode
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "/home/{{ instance_user }}/.config/code-server/config.yaml"
+    mode: 0600
 
-- name: Template vscode-values 
-  template:
-    src: "{{ role_path }}/templates/vscode-values.yaml.j2"
-    dest: "{{ role_path }}/files/vscode-values.yaml"
+# https://marketplace.visualstudio.com/items?itemName=dynatrace.dynatrace-debugging-extension
+- name: Install Dynatrace debugging extension
+  become: true
+  ansible.builtin.shell: |
+    code-server --install-extension "{{ role_path }}/files/vscode/extensions/dynatrace.dynatrace-debugging-extension-2.3.0.vsix"
+
+- name: Ensure ingress directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
+    state: directory
+    mode: "0755"
+
+- name: Template code-server ingress
+  ansible.builtin.template:
+    src: code-server-ingress.yaml.j2
+    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/code-server-ingress.yaml"
     mode: "0644"
 
-# https://coder.com/docs/code-server/install#helm
-# - name: Install Local VSCode Helm chart
-#   ansible.builtin.shell: |
-#     helm upgrade --install vscode \
-#       {{ role_path }}/files/helm-chart \
-#       --namespace "{{ vscode_namespace }}" \
-#       --create-namespace \
-#       --wait \
-#       --timeout 30m \
-#       -f "{{ role_path }}/files/vscode-values.yaml"
-#   environment:
-#     KUBECONFIG: "{{ kubeconfig_path }}"
-#   register: vscode_install
-#   changed_when: >
-#     'STATUS: deployed' in vscode_install.stdout or
-#     'STATUS: upgraded' in vscode_install.stdout
+- name: Apply code-server ingress
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/code-server-ingress.yaml"
 
-- block:
-    - name: Helm upgrade/install
-      command: >
-        helm upgrade --install vscode {{ role_path }}/files/helm-chart
-        --namespace {{ vscode_namespace }}
-        --create-namespace
-        --wait
-        --timeout 30m
-        --atomic
-        --cleanup-on-fail
-        -f {{ role_path }}/files/vscode-values.yaml
-      environment:
-        KUBECONFIG: "{{ kubeconfig_path }}"
-      changed_when: false
+- name: Create VS Code user data directory
+  file:
+    path: "/home/{{ instance_user }}/.local/share/code-server/User"
+    state: directory
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0755"
 
-  rescue:
-    - name: Helm uninstall failed release
-      command: helm uninstall vscode -n {{ vscode_namespace }}
-      environment:
-        KUBECONFIG: "{{ kubeconfig_path }}"
-      failed_when: false
+- name: Configure VS Code user settings (theme and preferences)
+  template:
+    src: settings.json.j2
+    dest: "/home/{{ instance_user }}/.local/share/code-server/User/settings.json"
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0644"
+
+- name: Restart VSCode
+  become: true
+  ansible.builtin.shell: |
+    systemctl restart code-server@{{ instance_user }}
