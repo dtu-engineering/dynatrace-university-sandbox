@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: code-server
+  namespace: {{ vscode_namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ local_ingress_port }}
+      targetPort: {{ local_ingress_port }}

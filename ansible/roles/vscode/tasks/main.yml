@@ -30,21 +30,47 @@
   ansible.builtin.shell: |
     code-server --install-extension "{{ role_path }}/files/vscode/extensions/dynatrace.dynatrace-debugging-extension-2.3.0.vsix"
 
-- name: Ensure ingress directory exists
+- name: Ensure manifests directory exists
   ansible.builtin.file:
-    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
+    path: "{{ role_path }}/files/kubernetes-manifests"
     state: directory
     mode: "0755"
 
 - name: Template code-server ingress
   ansible.builtin.template:
     src: code-server-ingress.yaml.j2
-    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/code-server-ingress.yaml"
+    dest: "{{ role_path }}/files/kubernetes-manifests/code-server-ingress.yaml"
     mode: "0644"
+
+- name: Template code-server service
+  ansible.builtin.template:
+    src: code-server-service.yaml.j2
+    dest: "{{ role_path }}/files/kubernetes-manifests/code-server-service.yaml"
+    mode: "0644"
+
+- name: Template code-server Endpoints (bridge)
+  ansible.builtin.template:
+    src: code-server-endpoints.yaml.j2
+    dest: "{{ role_path }}/files/kubernetes-manifests/code-server-endpoints.yaml"
+    mode: "0644"
+
+- name: Ensure vscode namespace exists
+  shell: |
+    kubectl get namespace "{{ vscode_namespace }}" || kubectl create namespace "{{ vscode_namespace }}"
+  register: vscode_ns
+  changed_when: "'created' in vscode_ns.stdout"
+
+- name: Apply code-server service
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/code-server-service.yaml"
+
+- name: Apply code-server endpoints
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/code-server-endpoints.yaml"
 
 - name: Apply code-server ingress
   ansible.builtin.shell: |
-    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/code-server-ingress.yaml"
+    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/code-server-ingress.yaml"
 
 - name: Create VS Code user data directory
   file:
