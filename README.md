@@ -1,19 +1,13 @@
 # Dynatrace University Sandbox
 
 ## Overview
-The **Dynatrace University Sandbox** provisions a fully functional, ready‑to‑use sandbox environment designed to accompany the **Dynatrace University Sandbox** Aether module. It includes multiple demo applications, automatic Dynatrace instrumentation, and preconfigured Dynatrace tenant settings delivering a fully observable and operational environment out of the box.
-
+The **Dynatrace University Sandbox** provisions a fully functional, ready‑to‑use sandbox environment. It includes a Dynatrace environment, multiple demo applications, automatic Dynatrace instrumentation, and preconfigured Dynatrace tenant settings delivering a fully observable and operational environment out of the box. 
 
 ## Included Applications
 
 ### Core Components
 - **Kubernetes**  
 Lightweight Kubernetes distribution | [docs](https://docs.k3s.io/)
-
-
-- **Dynatrace Operator**  
-Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [docs](https://github.com/Dynatrace/dynatrace-operator)
-
 
 ### Demo Applications
 - **Easytrade**  
@@ -41,6 +35,9 @@ The sandbox automatically applies several Dynatrace tenant settings to ensure a 
 - **Kubernetes app & Smartscape settings enabled**  
   Enables Kubernetes Platform Monitoring to provide insights into your Kubernetes clusters via the new Kubernetes app
 
+- **Dynatrace Operator**  
+Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [docs](https://github.com/Dynatrace/dynatrace-operator)
+
 ## Application Versions
 
 | Application Name                     | Version   |
@@ -52,3 +49,13 @@ The sandbox automatically applies several Dynatrace tenant settings to ensure a 
 | Unguard                             | [v0.13.0](https://github.com/dynatrace-oss/unguard/releases/tag/v0.13.0)   |
 | VSCode (code-server)                | [v4.109.2](https://github.com/coder/code-server/releases/tag/v4.109.2)   |
 | Dynatrace Debugging Extension       | [v2.3.0](https://marketplace.visualstudio.com/items?itemName=dynatrace.dynatrace-debugging-extension)   |
+
+## Deployment Options:
+There are 3 supported University Sandbox deployment options which determine what is installed on the environment:
+
+- Sandbox Standard
+  - Includes all documented core components, demo applications, Operator deployment, and Dynatrace configurations above
+- Sandbox Core
+  - Includes all core components, Dynatrace configurations, and Operator deployment (No installed demo applications, with the exception of VSCode)
+- Sandbox Bare
+  - Only includes the the core components and VSCode application, with no demo applications or extra configuration

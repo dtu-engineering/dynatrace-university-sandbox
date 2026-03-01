@@ -1,0 +1,11 @@
+---
+- name: Dynatrace University Sandbox - Lite
+  hosts: localhost
+  connection: local
+  vars_files: 
+    - ./ansible_config_vars.yml
+  tasks:
+    - include_role:
+        name: kubernetes
+    - include_role:
+        name: vscode
