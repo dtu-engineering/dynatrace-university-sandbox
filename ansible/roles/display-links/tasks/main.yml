@@ -1,0 +1,20 @@
+---
+
+- name: "Add application links to .bashrc"
+  ansible.builtin.blockinfile:
+    path: "/home/{{ instance_user }}/.bashrc"
+    create: true
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0644"
+    marker: "# {mark} DTU_SANDBOX_LINKS"
+    block: |
+      echo -e "\e[1;32m---------------------------------------\e[0m"
+      echo -e "\e[1;32m-----------Application Links ----------\e[0m"
+      echo -e "\e[1;32m---------------------------------------\e[0m"
+      {% if sandbox_scenario == "standard" %}
+      echo -e "\n\e[1;32mhttps://unguard.{{ ingress_domain }}/ui\e[0m\n"
+      echo -e "\e[1;32mhttps://astroshop.{{ ingress_domain }}\e[0m\n"
+      echo -e "\e[1;32mhttps://easytrade.{{ ingress_domain }}/\e[0m\n"
+      {% endif %}
+      echo -e "\e[1;32mhttps://vscode.{{ ingress_domain }}/\e[0m\n"
