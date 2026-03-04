@@ -9,3 +9,7 @@
         name: kubernetes
     - include_role:
         name: vscode
+    - include_role:
+        name: display-links
+      vars:
+        sandbox_scenario: "bare"

@@ -13,3 +13,7 @@
         name: dynatrace-settings
     - include_role:
         name: vscode
+    - include_role:
+        name: display-links
+      vars:
+        sandbox_scenario: "core"

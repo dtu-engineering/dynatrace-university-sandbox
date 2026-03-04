@@ -19,3 +19,7 @@
         name: opentelemetry-demo
     - include_role:
         name: unguard
+    - include_role:
+        name: display-links
+      vars:
+        sandbox_scenario: "standard"
