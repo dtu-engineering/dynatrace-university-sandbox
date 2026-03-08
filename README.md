@@ -20,7 +20,7 @@ Lightweight Kubernetes distribution | [docs](https://docs.k3s.io/)
   A Dynatrace open-source and security‑focused demo application used for vulnerability and runtime analysis scenarios | [docs](https://github.com/dynatrace-oss/unguard)
 
 - **VSCode (code-server)**  
-  A fully functional Visual Studio Code application running in a web browser with the supporting Dynatrace Debugging Extension installed  | [docs](https://coder.com/docs/code-server/guide) | [extension docs](https://docs.dynatrace.com/docs/observe/application-observability/live-debugger/ide-integration)
+  A fully functional Visual Studio Code application running in a web browser for local filesystem and terminal access  | [docs](https://coder.com/docs/code-server/guide)
 
 ## Dynatrace Configuration
 
@@ -44,18 +44,7 @@ Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [
 |-------------------------------------|-----------|
 | Kubernetes (k3s)                    | [v1.35.0](https://docs.k3s.io/release-notes/v1.35.X#release-v1350k3s1)     |
 | Dynatrace Operator                  | [v1.7.3](https://github.com/Dynatrace/dynatrace-operator/releases/tag/v1.7.3)    |
-| Easytrade                           | [v1.3.0](https://github.com/Dynatrace/easytrade/releases/tag/v1.3.0)    |
+| Easytrade                           | [v1.3.1](https://github.com/Dynatrace/easytrade/releases/tag/v1.3.0)    |
 | OpenTelemetry Demo                  | [2.2.0](https://github.com/open-telemetry/opentelemetry-demo/releases/tag/2.2.0)     |
 | Unguard                             | [v0.13.0](https://github.com/dynatrace-oss/unguard/releases/tag/v0.13.0)   |
 | VSCode (code-server)                | [v4.109.2](https://github.com/coder/code-server/releases/tag/v4.109.2)   |
-| Dynatrace Debugging Extension       | [v2.3.0](https://marketplace.visualstudio.com/items?itemName=dynatrace.dynatrace-debugging-extension)   |
-
-## Deployment Options:
-There are 3 supported University Sandbox deployment options which determine what is installed on the environment:
-
-- Sandbox Standard
-  - Includes all documented core components, demo applications, Operator deployment, and Dynatrace configurations above
-- Sandbox Core
-  - Includes all core components, Dynatrace configurations, and Operator deployment (No installed demo applications, with the exception of VSCode)
-- Sandbox Bare
-  - Only includes the the core components and VSCode application, with no demo applications or extra configuration
