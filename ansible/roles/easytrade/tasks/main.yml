@@ -10,11 +10,10 @@
   register: git_clone
 
 - name: Ensure easytrade namespace exists
-  kubernetes.core.k8s:
-    kind: Namespace
-    api_version: v1
-    name: "{{ easytrade_namespace }}"
-    state: present
+  shell: |
+    kubectl get namespace easytrade || kubectl create namespace easytrade
+  register: easytrade_ns
+  changed_when: "'created' in easytrade_ns.stdout"
 
 - name: Apply easytrade release manifests
   ansible.builtin.shell: |

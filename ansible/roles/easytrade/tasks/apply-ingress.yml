@@ -13,4 +13,4 @@
     mode: "0644"
 
 - name: Apply Easytrade ingress
-  shell: kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/easytrade-ingress.yaml"
+  shell: kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/ingress/easytrade-ingress.yaml"
