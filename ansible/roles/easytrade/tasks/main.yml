@@ -1,30 +1,24 @@
 ---
 
+- name: Clone Easytrade Repo (pinned release)
+  ansible.builtin.git:
+    repo: "https://github.com/Dynatrace/easytrade.git"
+    dest: "{{ role_path }}/files/easytrade"
+    version: "{{ easytrade_release_version }}"
+    depth: 1
+    force: true
+  register: git_clone
+
 - name: Ensure easytrade namespace exists
-  shell: |
-    kubectl get namespace easytrade || kubectl create namespace easytrade
-  register: easytrade_ns
-  changed_when: "'created' in easytrade_ns.stdout"
-
-# https://github.com/Dynatrace/easytrade/tree/main/kubernetes-manifests/release
-
-- name: Ensure kubernetes-manifests directory exists
-  ansible.builtin.file:
-    path: "{{ role_path }}/files/kubernetes-manifests"
-    state: directory
-    mode: "0755"
-
-- name: Render all Kubernetes manifest templates
-  ansible.builtin.template:
-    src: "{{ item }}"
-    dest: "{{ role_path }}/files/kubernetes-manifests/{{ item | basename | regex_replace('\\.j2$', '') }}"
-    mode: "0644"
-  with_fileglob:
-    - "{{ role_path }}/templates/*.j2"
+  kubernetes.core.k8s:
+    kind: Namespace
+    api_version: v1
+    name: "{{ easytrade_namespace }}"
+    state: present
 
 - name: Apply easytrade release manifests
-  shell: |
-    kubectl -n easytrade apply -f "{{ role_path }}/files/kubernetes-manifests"
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/release" -n "{{ easytrade_namespace }}"
   register: easytrade_apply
   retries: 10
   delay: 6
@@ -37,45 +31,8 @@
   delay: 3
   until: easytrade_deployments.rc == 0
 
-- name: Ensure ingress directory exists
-  ansible.builtin.file:
-    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
-    state: directory
-    mode: "0755"
+- name: Deploy Kubernetes Ingress
+  include_tasks: apply-ingress.yml
 
-- name: Template Easytrade ingress
-  ansible.builtin.template:
-    src: ingress/easytrade-ingress.yaml.j2
-    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/easytrade-ingress.yaml"
-    mode: "0644"
-
-- name: Apply Easytrade ingress
-  shell: kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/easytrade-ingress.yaml"
-
-- name: Pause for easytrade deployment
-  pause:
-    seconds: 120
-
-- name: Count all Easytrade pods
-  shell: |
-    kubectl -n easytrade get pods --no-headers | wc -l
-  register: easytrade_pod_count
-  retries: 20
-  delay: 10
-  until: easytrade_pod_count.stdout | int > 0
-
-- name: Wait for all Easytrade pods to be Running and Ready
-  shell: |
-    kubectl -n easytrade get pods -o json \
-    | jq '[.items[] 
-           | select(.status.phase=="Running") 
-           | select(all(.status.containerStatuses[]; .ready==true))
-          ] | length'
-  register: easytrade_ready_count
-  retries: 30
-  delay: 15
-  until: easytrade_ready_count.stdout | int == (easytrade_pod_count.stdout | int)
-
-- name: Pause for easytrade to settle
-  pause:
-    seconds: 180
+- name: Verify Easytrade Deployment
+  include_tasks: verify-deployment.yml

@@ -1,0 +1,29 @@
+---
+
+- name: Pause for easytrade deployment
+  pause:
+    seconds: 120
+
+- name: Count all Easytrade pods
+  shell: |
+    kubectl -n "{{ easytrade_namespace }}" get pods --no-headers | wc -l
+  register: easytrade_pod_count
+  retries: 20
+  delay: 10
+  until: easytrade_pod_count.stdout | int > 0
+
+- name: Wait for all Easytrade pods to be Running and Ready
+  shell: |
+    kubectl -n "{{ easytrade_namespace }}" get pods -o json \
+    | jq '[.items[] 
+           | select(.status.phase=="Running") 
+           | select(all(.status.containerStatuses[]; .ready==true))
+          ] | length'
+  register: easytrade_ready_count
+  retries: 30
+  delay: 15
+  until: easytrade_ready_count.stdout | int == (easytrade_pod_count.stdout | int)
+
+- name: Pause for easytrade to settle
+  pause:
+    seconds: 180
