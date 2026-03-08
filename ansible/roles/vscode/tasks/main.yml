@@ -30,12 +30,6 @@
     dest: "/home/{{ instance_user }}/.config/code-server/config.yaml"
     mode: 0600
 
-# https://marketplace.visualstudio.com/items?itemName=dynatrace.dynatrace-debugging-extension
-- name: Install Dynatrace debugging extension
-  become: true
-  ansible.builtin.shell: |
-    code-server --install-extension "{{ role_path }}/files/vscode/extensions/dynatrace.dynatrace-debugging-extension-2.3.0.vsix"
-
 - name: Ensure manifests directory exists
   ansible.builtin.file:
     path: "{{ role_path }}/files/kubernetes-manifests"

@@ -1,0 +1,16 @@
+---
+
+- name: Ensure ingress directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/easytrade/kubernetes-manifests/ingress"
+    state: directory
+    mode: "0755"
+
+- name: Template Easytrade ingress
+  ansible.builtin.template:
+    src: ingress/easytrade-ingress.yaml.j2
+    dest: "{{ role_path }}/files/easytrade/kubernetes-manifests/ingress/easytrade-ingress.yaml"
+    mode: "0644"
+
+- name: Apply Easytrade ingress
+  shell: kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/ingress/easytrade-ingress.yaml"
