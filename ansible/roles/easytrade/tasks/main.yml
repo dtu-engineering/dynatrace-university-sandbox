@@ -58,15 +58,10 @@
   delay: 3
   until: easytrade_deployments.rc == 0
 
-- name: Inject Live Debugger env into EasyTrade deployments
+- name: Inject Live Debugger env from ConfigMap into EasyTrade deployments
   ansible.builtin.shell: |
-    set -e
-    for d in $(kubectl -n easytrade get deploy -o name); do
-      kubectl -n easytrade apply -f "{{ role_path }}/files/livedebugger-env-overlay.yaml" \
-        --dry-run=client -o yaml \
-      | sed "s/name: PLACEHOLDER/name: $(basename $d)/" \
-      | kubectl apply -f -
-    done
+    kubectl -n easytrade set env deployment --all --from=configmap/easytrade-livedebugger
+  changed_when: true
 
 - name: Print Live Debugger env vars from frontend
   ansible.builtin.shell: |
