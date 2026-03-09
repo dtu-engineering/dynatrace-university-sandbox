@@ -15,6 +15,18 @@
   register: easytrade_ns
   changed_when: "'created' in easytrade_ns.stdout"
 
+- name: Get EasyTrade git remote origin
+  ansible.builtin.shell: |
+    git -C "{{ role_path }}/files/easytrade" remote get-url origin
+  register: easytrade_remote_origin
+  changed_when: false
+
+- name: Get EasyTrade git commit SHA for pinned release
+  ansible.builtin.shell: |
+    git -C "{{ role_path }}/files/easytrade" rev-parse HEAD
+  register: easytrade_git_commit
+  changed_when: false
+
 - name: Ensure configmap directory exists
   ansible.builtin.file:
     path: "{{ role_path }}/files/easytrade/kubernetes-manifests/configmap"
