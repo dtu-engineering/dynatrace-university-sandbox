@@ -10,10 +10,26 @@
   register: git_clone
 
 - name: Ensure easytrade namespace exists
-  shell: |
+  ansible.builtin.shell: |
     kubectl get namespace easytrade || kubectl create namespace easytrade
   register: easytrade_ns
   changed_when: "'created' in easytrade_ns.stdout"
+
+- name: Ensure configmap directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/easytrade/kubernetes-manifests/configmap"
+    state: directory
+    mode: "0755"
+
+- name: Template Configmap
+  ansible.builtin.template:
+    src: configmap/livedebugger-configmap.yaml.j2
+    dest: "{{ role_path }}/files/easytrade/kubernetes-manifests/configmap/livedebugger-configmap.yaml"
+    mode: "0644"
+
+- name: Apply Live Debugger ConfigMap
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/configmap/livedebugger-configmap.yaml"
 
 - name: Apply easytrade release manifests
   ansible.builtin.shell: |
@@ -24,11 +40,31 @@
   until: easytrade_apply.rc == 0
 
 - name: Wait for Easytrade deployments to exist
-  shell: kubectl -n easytrade get deployment
+  ansible.builtin.shell: kubectl -n easytrade get deployment
   register: easytrade_deployments
   retries: 10
   delay: 3
   until: easytrade_deployments.rc == 0
+
+- name: Inject Live Debugger env into EasyTrade deployments
+  ansible.builtin.shell: |
+    set -e
+    for d in $(kubectl -n easytrade get deploy -o name); do
+      kubectl -n easytrade apply -f "{{ role_path }}/files/livedebugger-env-overlay.yaml" \
+        --dry-run=client -o yaml \
+      | sed "s/name: PLACEHOLDER/name: $(basename $d)/" \
+      | kubectl apply -f -
+    done
+
+- name: Print Live Debugger env vars from frontend
+  ansible.builtin.shell: |
+    kubectl -n easytrade exec deploy/frontend -- printenv | grep DT_LIVEDEBUGGER
+  register: livedebugger_env
+  changed_when: false
+  failed_when: false
+
+- ansible.builtin.debug:
+    msg: "{{ livedebugger_env.stdout_lines }}"
 
 - name: Deploy Kubernetes Ingress
   include_tasks: apply-ingress.yml
