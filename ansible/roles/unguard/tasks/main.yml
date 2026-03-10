@@ -84,6 +84,10 @@
   changed_when: false
   failed_when: unguard_setenv.rc != 0
 
+- name: Pause for verifying env vars
+  pause:
+    seconds: 15
+
 - name: Print Live Debugger env vars from unguard frontend (if present)
   ansible.builtin.shell: |
     kubectl -n "{{ unguard_namespace }}" exec deploy/unguard-frontend -- printenv | grep DT_LIVEDEBUGGER
@@ -96,6 +100,3 @@
 
 - name: Deploy Kubernetes Ingress
   include_tasks: apply-ingress.yml
-
-- name: Verify Easytrade Deployment
-  include_tasks: verify-deployment.yml
