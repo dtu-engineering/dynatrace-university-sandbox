@@ -1,2 +1,4 @@
 ---
 unguard_version_local: "0.13.0"
+unguard_release_version: "0.13.0"
+unguard_namespace: "unguard"

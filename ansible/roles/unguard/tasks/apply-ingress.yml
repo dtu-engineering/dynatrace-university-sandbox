@@ -1,0 +1,16 @@
+---
+
+- name: Ensure ingress directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
+    state: directory
+    mode: "0755"
+
+- name: Template Unguard ingress
+  ansible.builtin.template:
+    src: unguard-ingress.yaml.j2
+    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/unguard-ingress.yaml"
+    mode: "0644"
+
+- name: Apply Unguard Ingress
+  shell: kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/unguard-ingress.yaml"
