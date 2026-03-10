@@ -59,6 +59,12 @@
   register: unguard_install
   changed_when: "'STATUS: deployed' in unguard_install.stdout or 'STATUS: upgraded' in unguard_install.stdout"
 
+- name: Ensure configmap directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/unguard/kubernetes-manifests/configmap"
+    state: directory
+    mode: "0755"
+
 - name: Template Live Debugger ConfigMap for Unguard
   ansible.builtin.template:
     src: configmap/unguard-livedebugger-configmap.yaml.j2
@@ -73,7 +79,7 @@
 
 - name: Inject Live Debugger env from ConfigMap into Unguard deployments
   ansible.builtin.shell: |
-    kubectl -n "{{ unguard_namespace }}" set env deployment --all --from=configmap/"{{ unguard_livedebugger_configmap }}"
+    kubectl -n "{{ unguard_namespace }}" set env deployment --all --from=configmap/unguard-livedebugger
   register: unguard_setenv
   changed_when: false
   failed_when: unguard_setenv.rc != 0
@@ -88,5 +94,8 @@
 - ansible.builtin.debug:
     msg: "{{ unguard_livedebugger_env.stdout_lines }}"
 
+- name: Deploy Kubernetes Ingress
+  include_tasks: apply-ingress.yml
 
-# Ingress steps here
+- name: Verify Easytrade Deployment
+  include_tasks: verify-deployment.yml
