@@ -20,8 +20,8 @@
            | select(all(.status.containerStatuses[]; .ready==true))
           ] | length'
   register: easytrade_ready_count
-  retries: 30
-  delay: 15
+  retries: 20
+  delay: 30
   until: easytrade_ready_count.stdout | int == (easytrade_pod_count.stdout | int)
 
 - name: Pause for easytrade to settle
