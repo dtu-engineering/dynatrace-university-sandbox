@@ -1,0 +1,9 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: easytrade-livedebugger
+  namespace: {{ easytrade_namespace }}
+data:
+  DT_LIVEDEBUGGER_COMMIT: "{{ easytrade_git_commit.stdout }}"
+  DT_LIVEDEBUGGER_REMOTE_ORIGIN: "{{ easytrade_remote_origin.stdout }}"

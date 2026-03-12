@@ -1,0 +1,40 @@
+---
+
+- name: Ensure configmap directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/unguard/kubernetes-manifests/configmap"
+    state: directory
+    mode: "0755"
+
+- name: Template Live Debugger ConfigMap for Unguard
+  ansible.builtin.template:
+    src: configmap/unguard-livedebugger-configmap.yaml.j2
+    dest: "{{ role_path }}/files/unguard/kubernetes-manifests/configmap/unguard-livedebugger-configmap.yaml"
+    mode: "0644"
+
+- name: Apply Live Debugger ConfigMap (idempotent)
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/unguard/kubernetes-manifests/configmap/unguard-livedebugger-configmap.yaml"
+  register: unguard_apply_cm
+  changed_when: "'created' in unguard_apply_cm.stdout or 'configured' in unguard_apply_cm.stdout"
+
+- name: Inject Live Debugger env from ConfigMap into Unguard deployments
+  ansible.builtin.shell: |
+    kubectl -n "{{ unguard_namespace }}" set env deployment --all --from=configmap/unguard-livedebugger
+  register: unguard_setenv
+  changed_when: false
+  failed_when: unguard_setenv.rc != 0
+
+- name: Pause for deployment
+  pause:
+    seconds: 30
+
+- name: Print Live Debugger env vars from unguard frontend
+  ansible.builtin.shell: |
+    kubectl -n "{{ unguard_namespace }}" exec deploy/unguard-frontend -- printenv | grep DT_LIVEDEBUGGER
+  register: unguard_livedebugger_env
+  changed_when: false
+  failed_when: false
+
+- ansible.builtin.debug:
+    msg: "{{ unguard_livedebugger_env.stdout_lines }}"

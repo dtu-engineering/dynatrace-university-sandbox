@@ -1,37 +1,13 @@
 ---
 
-- name: Clone Easytrade Repo (pinned release)
-  ansible.builtin.git:
-    repo: "https://github.com/Dynatrace/easytrade.git"
-    dest: "{{ role_path }}/files/easytrade"
-    version: "{{ easytrade_release_version }}"
-    depth: 1
-    force: true
-  register: git_clone
+- name: Deploy Easytrade
+  include_tasks: deploy.yml
 
-- name: Ensure easytrade namespace exists
-  shell: |
-    kubectl get namespace easytrade || kubectl create namespace easytrade
-  register: easytrade_ns
-  changed_when: "'created' in easytrade_ns.stdout"
-
-- name: Apply easytrade release manifests
-  ansible.builtin.shell: |
-    kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/release" -n "{{ easytrade_namespace }}"
-  register: easytrade_apply
-  retries: 10
-  delay: 6
-  until: easytrade_apply.rc == 0
-
-- name: Wait for Easytrade deployments to exist
-  shell: kubectl -n easytrade get deployment
-  register: easytrade_deployments
-  retries: 10
-  delay: 3
-  until: easytrade_deployments.rc == 0
+- name: Apply Live Debugger Environment Variables
+  include_tasks: live-debugger.yml
 
 - name: Deploy Kubernetes Ingress
-  include_tasks: apply-ingress.yml
+  include_tasks: ingress.yml
 
 - name: Verify Easytrade Deployment
-  include_tasks: verify-deployment.yml
+  include_tasks: verify.yml
