@@ -1,54 +1,10 @@
 ---
 
-- name: Ensure unguard namespace exists
-  ansible.builtin.shell: |
-    kubectl get namespace unguard || kubectl create namespace unguard
-  register: unguard_ns
-  changed_when: "'created' in unguard_ns.stdout"
+- name: Deploy Unguard
+  include_tasks: deploy.yml
 
-- name: Add Bitnami Helm repo
-  ansible.builtin.shell: |
-    helm repo add bitnami https://charts.bitnami.com/bitnami || true
-  register: bitnami_repo
+- name: Apply Live Debugger Environment Variables
+  include_tasks: live-debugger.yml
 
-- name: Install MariaDB for Unguard
-  ansible.builtin.shell: |
-    helm upgrade --install unguard-mariadb bitnami/mariadb \
-      --version 11.5.7 \
-      --set primary.persistence.enabled=false \
-      --set image.repository=bitnamilegacy/mariadb \
-      --namespace unguard \
-      --create-namespace \
-      --wait
-  environment: 
-    KUBECONFIG: "{{ kubeconfig_path }}"
-  register: mariadb_install
-  changed_when: "'STATUS: deployed' in mariadb_install.stdout or 'STATUS: upgraded' in mariadb_install.stdout"
-
-- name: Install Local Unguard Helm chart
-  ansible.builtin.shell: |
-    helm upgrade --install unguard \
-      {{ role_path }}/files/helm/charts/{{ unguard_version_local }}/unguard \
-      --namespace unguard \
-      --create-namespace \
-      --wait \
-      --timeout 15m
-  environment:
-    KUBECONFIG: "{{ kubeconfig_path }}"
-  register: unguard_install
-  changed_when: "'STATUS: deployed' in unguard_install.stdout or 'STATUS: upgraded' in unguard_install.stdout"
-
-- name: Ensure ingress directory exists
-  ansible.builtin.file:
-    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
-    state: directory
-    mode: "0755"
-
-- name: Template Unguard ingress
-  ansible.builtin.template:
-    src: unguard-ingress.yaml.j2
-    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/unguard-ingress.yaml"
-    mode: "0644"
-
-- name: Apply Unguard Ingress
-  shell: kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/unguard-ingress.yaml"
+- name: Deploy Kubernetes Ingress
+  include_tasks: ingress.yml

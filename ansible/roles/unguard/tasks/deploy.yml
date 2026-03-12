@@ -1,0 +1,99 @@
+---
+
+- name: Clone Unguard Repo
+  ansible.builtin.git:
+    repo: "{{ unguard_remote_origin }}"
+    dest: "{{ role_path }}/files/unguard"
+    version: "{{ unguard_release_version }}"
+    depth: 1
+    force: true
+  register: unguard_git_clone
+
+- name: Get Unguard git remote origin
+  ansible.builtin.shell: |
+    git -C "{{ role_path }}/files/unguard" remote get-url origin
+  register: unguard_remote_origin
+  changed_when: false
+
+- name: Get Unguard git commit SHA for pinned release
+  ansible.builtin.shell: |
+    git -C "{{ role_path }}/files/unguard" rev-parse HEAD
+  register: unguard_git_commit
+  changed_when: false
+
+- name: Ensure unguard namespace exists
+  ansible.builtin.shell: |
+    kubectl get namespace "{{ unguard_namespace }}" || kubectl create namespace "{{ unguard_namespace }}"
+  register: unguard_ns
+  changed_when: "'created' in unguard_ns.stdout"
+
+- name: Add Bitnami Helm repo
+  ansible.builtin.shell: |
+    helm repo add bitnami https://charts.bitnami.com/bitnami || true
+  register: bitnami_repo
+
+- name: Install MariaDB for Unguard
+  ansible.builtin.shell: |
+    helm upgrade --install unguard-mariadb bitnami/mariadb \
+      --version 11.5.7 \
+      --set primary.persistence.enabled=false \
+      --set image.repository=bitnamilegacy/mariadb \
+      --namespace "{{ unguard_namespace }}" \
+      --create-namespace \
+      --wait
+  environment: 
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: mariadb_install
+  changed_when: "'STATUS: deployed' in mariadb_install.stdout or 'STATUS: upgraded' in mariadb_install.stdout"
+
+- name: Install Unguard Helm chart
+  ansible.builtin.shell: |
+    helm upgrade --install unguard \
+      {{ role_path }}/files/unguard/chart \
+      --namespace "{{ unguard_namespace }}" \
+      --create-namespace \
+      --wait \
+      --timeout 20m
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: unguard_install
+  changed_when: "'STATUS: deployed' in unguard_install.stdout or 'STATUS: upgraded' in unguard_install.stdout"
+
+- name: Ensure configmap directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/unguard/kubernetes-manifests/configmap"
+    state: directory
+    mode: "0755"
+
+- name: Template Live Debugger ConfigMap for Unguard
+  ansible.builtin.template:
+    src: configmap/unguard-livedebugger-configmap.yaml.j2
+    dest: "{{ role_path }}/files/unguard/kubernetes-manifests/configmap/unguard-livedebugger-configmap.yaml"
+    mode: "0644"
+
+- name: Apply Live Debugger ConfigMap (idempotent)
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/unguard/kubernetes-manifests/configmap/unguard-livedebugger-configmap.yaml"
+  register: unguard_apply_cm
+  changed_when: "'created' in unguard_apply_cm.stdout or 'configured' in unguard_apply_cm.stdout"
+
+- name: Inject Live Debugger env from ConfigMap into Unguard deployments
+  ansible.builtin.shell: |
+    kubectl -n "{{ unguard_namespace }}" set env deployment --all --from=configmap/unguard-livedebugger
+  register: unguard_setenv
+  changed_when: false
+  failed_when: unguard_setenv.rc != 0
+
+- name: Pause for deployment
+  pause:
+    seconds: 30
+
+- name: Print Live Debugger env vars from unguard frontend (if present)
+  ansible.builtin.shell: |
+    kubectl -n "{{ unguard_namespace }}" exec deploy/unguard-frontend -- printenv | grep DT_LIVEDEBUGGER
+  register: unguard_livedebugger_env
+  changed_when: false
+  failed_when: false
+
+- ansible.builtin.debug:
+    msg: "{{ unguard_livedebugger_env.stdout_lines }}"

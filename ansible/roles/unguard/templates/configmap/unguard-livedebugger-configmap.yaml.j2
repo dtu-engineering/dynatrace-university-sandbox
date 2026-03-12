@@ -1,0 +1,9 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unguard-livedebugger
+  namespace: {{ unguard_namespace }}
+data:
+  DT_LIVEDEBUGGER_COMMIT: "{{ unguard_git_commit.stdout }}"
+  DT_LIVEDEBUGGER_REMOTE_ORIGIN: "{{ unguard_remote_origin.stdout }}"

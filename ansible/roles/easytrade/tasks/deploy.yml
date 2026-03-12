@@ -1,0 +1,31 @@
+---
+
+- name: Clone Easytrade Repo
+  ansible.builtin.git:
+    repo: "{{ easytrade_remote_origin }}"
+    dest: "{{ role_path }}/files/easytrade"
+    version: "{{ easytrade_release_version }}"
+    depth: 1
+    force: true
+  register: git_clone
+
+- name: Ensure easytrade namespace exists
+  ansible.builtin.shell: |
+    kubectl get namespace "{{ easytrade_namespace }}" || kubectl create namespace "{{ easytrade_namespace }}"
+  register: easytrade_ns
+  changed_when: "'created' in easytrade_ns.stdout"
+
+- name: Apply easytrade release manifests
+  ansible.builtin.shell: |
+    kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/release" -n "{{ easytrade_namespace }}"
+  register: easytrade_apply
+  retries: 10
+  delay: 6
+  until: easytrade_apply.rc == 0
+
+- name: Wait for Easytrade deployments to exist
+  ansible.builtin.shell: kubectl -n "{{ easytrade_namespace }}" get deployment
+  register: easytrade_deployments
+  retries: 10
+  delay: 3
+  until: easytrade_deployments.rc == 0

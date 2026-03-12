@@ -1,0 +1,21 @@
+---
+
+- name: Count all OpenTelemetry Demo pods
+  shell: |
+    kubectl -n otel-demo get pods --no-headers | wc -l
+  register: otel_pod_count
+  retries: 20
+  delay: 10
+  until: otel_pod_count.stdout | int > 0
+
+- name: Wait for all OpenTelemetry Demo pods to be Running and Ready
+  shell: |
+    kubectl -n otel-demo get pods -o json \
+    | jq '[.items[]
+           | select(.status.phase=="Running")
+           | select(all(.status.containerStatuses[]; .ready==true))
+          ] | length'
+  register: otel_ready_count
+  retries: 15
+  delay: 30
+  until: otel_ready_count.stdout | int == (otel_pod_count.stdout | int)

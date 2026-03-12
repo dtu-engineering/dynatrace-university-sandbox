@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: PLACEHOLDER
+spec:
+  template:
+    spec:
+      containers:
+        - name: PLACEHOLDER
+          envFrom:
+            - configMapRef:
+                name: unguard-livedebugger

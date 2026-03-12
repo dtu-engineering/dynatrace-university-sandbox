@@ -1,64 +1,10 @@
 ---
 
-- name: Ensure otel-demo namespace exists
-  shell: |
-    kubectl get namespace otel-demo || kubectl create namespace otel-demo
-  register: otel_ns
-  changed_when: "'created' in otel_ns.stdout"
+- name: Deploy Opentelemetry Demo Application
+  include_tasks: deploy.yml
 
-- name: Label namespace for no dynatrace injection
-  shell: |
-    kubectl label namespace otel-demo oneagent=false
-    kubectl label namespace otel-demo dynatrace.com/inject=false --overwrite
+- name: Deploy Kubernetes Ingress
+  include_tasks: ingress.yml
 
-- name: Apply OpenTelemetry Demo manifests
-  shell: |
-    kubectl -n otel-demo apply -f "{{ role_path }}/files/kubernetes-manifests"
-  register: otel_apply
-  retries: 10
-  delay: 6
-  until: otel_apply.rc == 0
-
-- name: Ensure ingress directory exists
-  ansible.builtin.file:
-    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
-    state: directory
-    mode: "0755"
-
-- name: Template OpenTelemetry Demo ingress
-  ansible.builtin.template:
-    src: opentelemetry-ingress.yaml.j2
-    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/opentelemetry-ingress.yaml"
-    mode: "0644"
-
-- name: Apply OpenTelemetry Demo ingress
-  shell: |
-    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/opentelemetry-ingress.yaml"
-
-- name: Pause for OpenTelemetry Demo deployment
-  pause:
-    seconds: 60
-
-- name: Count all OpenTelemetry Demo pods
-  shell: |
-    kubectl -n otel-demo get pods --no-headers | wc -l
-  register: otel_pod_count
-  retries: 20
-  delay: 10
-  until: otel_pod_count.stdout | int > 0
-
-- name: Wait for all OpenTelemetry Demo pods to be Running and Ready
-  shell: |
-    kubectl -n otel-demo get pods -o json \
-    | jq '[.items[]
-           | select(.status.phase=="Running")
-           | select(all(.status.containerStatuses[]; .ready==true))
-          ] | length'
-  register: otel_ready_count
-  retries: 15
-  delay: 30
-  until: otel_ready_count.stdout | int == (otel_pod_count.stdout | int)
-
-- name: Pause for otel deployment
-  pause:
-    seconds: 180
+- name: Verify Opentelemetry Deployment
+  include_tasks: verify.yml
