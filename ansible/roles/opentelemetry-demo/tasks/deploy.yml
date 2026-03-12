@@ -1,0 +1,24 @@
+---
+
+- name: Ensure otel-demo namespace exists
+  shell: |
+    kubectl get namespace otel-demo || kubectl create namespace otel-demo
+  register: otel_ns
+  changed_when: "'created' in otel_ns.stdout"
+
+- name: Label namespace for no dynatrace injection
+  shell: |
+    kubectl label namespace otel-demo oneagent=false
+    kubectl label namespace otel-demo dynatrace.com/inject=false --overwrite
+
+- name: Apply OpenTelemetry Demo manifests
+  shell: |
+    kubectl -n otel-demo apply -f "{{ role_path }}/files/kubernetes-manifests"
+  register: otel_apply
+  retries: 10
+  delay: 6
+  until: otel_apply.rc == 0
+
+- name: Pause for OpenTelemetry Demo deployment
+  pause:
+    seconds: 60

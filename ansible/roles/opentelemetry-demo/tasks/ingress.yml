@@ -1,0 +1,17 @@
+---
+
+- name: Ensure ingress directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/kubernetes-manifests/ingress"
+    state: directory
+    mode: "0755"
+
+- name: Template OpenTelemetry Demo ingress
+  ansible.builtin.template:
+    src: opentelemetry-ingress.yaml.j2
+    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/opentelemetry-ingress.yaml"
+    mode: "0644"
+
+- name: Apply OpenTelemetry Demo ingress
+  shell: |
+    kubectl apply -f "{{ role_path }}/files/kubernetes-manifests/ingress/opentelemetry-ingress.yaml"
