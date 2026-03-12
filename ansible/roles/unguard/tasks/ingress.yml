@@ -9,7 +9,7 @@
 - name: Template Unguard ingress
   ansible.builtin.template:
     src: ingress/unguard-ingress.yaml.j2
-    dest: "{{ role_path }}/files/kubernetes-manifests/ingress/unguard-ingress.yaml"
+    dest: "{{ role_path }}/files/unguard/kubernetes-manifests/ingress/unguard-ingress.yaml"
     mode: "0644"
 
 - name: Apply Unguard Ingress
