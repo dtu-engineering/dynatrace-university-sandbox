@@ -142,3 +142,38 @@
     status_code: [200, 201, 409]
   register: dt_settings_enable_oneagent_webserver_bizevents
   failed_when: false
+
+- name: Fetch Dynatrace Kubernetes cluster MEID from DynaKube status
+  shell: >
+    kubectl -n dynatrace get dynakube -o jsonpath='{.items[0].status.kubernetesClusterMEID}'
+  register: dt_k8s_cluster_meid
+  failed_when: false
+
+- name: Set Dynatrace Kubernetes cluster scope fact
+  set_fact:
+    dynatrace_k8s_cluster_meid: "{{ dt_k8s_cluster_meid.stdout }}"
+
+- name: Print Dynatrace Kubernetes cluster MEID
+  ansible.builtin.debug:
+    msg: "kubernetesClusterMEID: {{ dt_k8s_cluster_meid.stdout }}"
+
+- name: Enable Kubernetes App Monitoring on Cluster
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token_result.json.token }}"
+    body:
+      - schemaId: "builtin:app-transition.kubernetes"
+        schemaVersion: "1.1"
+        scope: "{{ dynatrace_k8s_cluster_meid }}"
+        value:
+          kubernetesAppOptions:
+            enableKubernetesApp: true
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_kubernetes_app_monitoring
+  failed_when: false
