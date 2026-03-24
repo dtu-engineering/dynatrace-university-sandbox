@@ -50,7 +50,7 @@
           globalMonitoringModeGo: "MONITORING_ON"
     body_format: json
     return_content: true
-    status_code: [200, 201, 400]
+    status_code: [200, 201, 409]
   register: dt_settings_enable_appsec_result
   failed_when: false
 
@@ -73,7 +73,7 @@
           matchers: []
     body_format: json
     return_content: true
-    status_code: [200, 201, 400, 409, 500]
+    status_code: [200, 201, 409]
   register: dt_settings_enable_log_ingest
   failed_when: false
 
@@ -95,6 +95,50 @@
             enableKubernetesSmartscape: true
     body_format: json
     return_content: true
-    status_code: [200, 201, 400, 409, 500]
+    status_code: [200, 201, 409]
   register: dt_settings_enable_kubernetes_app
+  failed_when: false
+
+- name: Enable OneAgent Feature - Node.js Business Events
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token_result.json.token }}"
+    body:
+      - schemaId: "builtin:oneagent.features"
+        schemaVersion: "1.5.10"
+        scope: "environment"
+        value:
+          enabled: true
+          instrumentation: true
+          key: "SENSOR_NODEJS_BIZEVENTS_HTTP_INCOMING"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_oneagent_nodejs_bizevents
+  failed_when: false
+
+- name: Enable OneAgent Feature - Webserver Business Events
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token_result.json.token }}"
+    body:
+      - schemaId: "builtin:oneagent.features"
+        schemaVersion: "1.5.10"
+        scope: "environment"
+        value:
+          enabled: true
+          instrumentation: true
+          key: "SENSOR_WEBSERVER_BIZEVENTS_HTTP_INCOMING"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_oneagent_webserver_bizevents
   failed_when: false
