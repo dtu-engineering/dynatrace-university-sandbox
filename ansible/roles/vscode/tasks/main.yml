@@ -91,7 +91,7 @@
 - name: Install local code-server extensions
   ansible.builtin.shell: |
     code-server --install-extension {{ role_path }}/files/vscode/extensions/{{ item }}
-  loop: "{{ vscode_extensions }}"
+  loop: "{{ vscode_local_extensions }}"
 
 - name: Restart VSCode
   become: true
