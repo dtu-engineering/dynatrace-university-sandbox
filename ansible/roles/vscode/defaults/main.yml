@@ -5,5 +5,6 @@ vscode_password: "{{ instance_password }}"
 private_ip: "{{ ansible_facts['default_ipv4']['address'] }}"
 local_ingress_port: 8080
 vscode_version: "4.112.0" # https://github.com/coder/code-server
-vscode_extensions:
-  - "/mnt/volume/extensions/dynatrace.dynatrace-debugging-extension-2.3.0.vsix"
+vscode_local_extensions:
+  - "dynatrace.dynatrace-debugging-extension-2.3.0.vsix"
+  - "github.copilot-chat-0.41.0.vsix"
