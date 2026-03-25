@@ -89,6 +89,8 @@
     mode: "0644"
 
 - name: Install local code-server extensions
+  become: true
+  become_user: "{{ instance_user }}"
   ansible.builtin.shell: |
     code-server --install-extension {{ role_path }}/files/vscode/extensions/{{ item }}
   loop: "{{ vscode_local_extensions }}"
