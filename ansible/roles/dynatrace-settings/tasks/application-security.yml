@@ -1,0 +1,122 @@
+---
+
+- name: Ensure runtime vulnerability detection settings are configured
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:appsec.runtime-vulnerability-detection"
+        schemaVersion: "3.12.1"
+        scope: "environment"
+        value:
+          enableRuntimeVulnerabilityDetection: true
+          globalMonitoringModeTPV: "MONITORING_ON"
+          technologies:
+            enableDotNet: true
+            enableDotNetRuntime: true
+            enableGo: true
+            enableJava: true
+            enableJavaRuntime: true
+            enableKubernetes: true
+            enableNodeJs: true
+            enableNodeJsRuntime: true
+            enablePython: true
+            enablePythonRuntime: true
+            enablePhp: true
+          enableCodeLevelVulnerabilityDetection: true
+          globalMonitoringModeJava: "MONITORING_ON"
+          globalMonitoringModeDotNet: "MONITORING_ON"
+          globalMonitoringModeGo: "MONITORING_ON"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_appsec_result
+  failed_when: false
+
+- name: Enable OneAgent Feature - .NET code-level vulnerability evaluation [Opt-In]
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:oneagent.features"
+        schemaVersion: "1.5.10"
+        scope: "environment"
+        value:
+          enabled: true
+          key: "DOTNET_CASP_FLAW_FINDER_IAST"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_dotnet_clv_result
+  failed_when: false
+
+- name: Enable OneAgent Feature -  Java SSRF code-level vulnerability and attack evaluation [Opt-In]
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:oneagent.features"
+        schemaVersion: "1.5.10"
+        scope: "environment"
+        value:
+          enabled: true
+          key: "JAVA_CASP_FLAW_FINDER_IAST"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_java_ssrf_clv_result
+  failed_when: false
+
+- name: Enable OneAgent Feature - Java code-level vulnerability evaluation [Opt-In]
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:oneagent.features"
+        schemaVersion: "1.5.10"
+        scope: "environment"
+        value:
+          enabled: true
+          key: "JAVA_CASP_FLAW_FINDER_HTTP_CLIENT_SINK"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_java_clv_result
+  failed_when: false
+
+- name: Enable OneAgent Feature - Go code-level vulnerability evaluation [Opt-In]
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:oneagent.features"
+        schemaVersion: "1.5.10"
+        scope: "environment"
+        value:
+          enabled: true
+          key: "GO_CASP_FLAW_FINDER_IAST"
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_go_clv_result
+  failed_when: false

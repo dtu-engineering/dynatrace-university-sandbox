@@ -1,0 +1,21 @@
+---
+
+- name: Create Dynatrace Settings Token
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
+    method: POST
+    status_code: [200, 201]
+    body:
+      name: "Dynatrace Settings Token"
+      scopes:
+        - settings.read
+        - settings.write
+        - securityProblems.write
+    body_format: json
+    headers:
+      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+  register: dynatrace_settings_token_result
+
+- name: Set Dynatrace Settings Token Fact
+  set_fact:
+    dynatrace_settings_token: "{{ dynatrace_settings_token_result.json.token }}"

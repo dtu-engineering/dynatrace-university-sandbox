@@ -1,0 +1,24 @@
+---
+
+- name: Ensure log storage settings are configured
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:logmonitoring.log-storage-settings"
+        schemaVersion: "1.0.18"
+        scope: "environment"
+        value:
+          enabled: true
+          config-item-title: "Custom: Ingest all logs"
+          send-to-storage: true
+          matchers: []
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_log_ingest
+  failed_when: false
