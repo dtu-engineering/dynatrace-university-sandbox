@@ -15,13 +15,18 @@
   register: easytrade_ns
   changed_when: "'created' in easytrade_ns.stdout"
 
-- name: Apply easytrade release manifests
+- name: Install Easytrade Helm chart
   ansible.builtin.shell: |
-    kubectl apply -f "{{ role_path }}/files/easytrade/kubernetes-manifests/release" -n "{{ easytrade_namespace }}"
-  register: easytrade_apply
-  retries: 10
-  delay: 6
-  until: easytrade_apply.rc == 0
+    helm upgrade --install easytrade \
+      {{ role_path }}/files/easytrade/helm/easytrade \
+      --namespace "{{ easytrade_namespace }}" \
+      --create-namespace \
+      --wait \
+      --timeout 20m
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: easytrade_install
+  changed_when: "'STATUS: deployed' in easytrade_install.stdout or 'STATUS: upgraded' in easytrade_install.stdout"
 
 - name: Wait for Easytrade deployments to exist
   ansible.builtin.shell: kubectl -n "{{ easytrade_namespace }}" get deployment
