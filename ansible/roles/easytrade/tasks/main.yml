@@ -3,9 +3,6 @@
 - name: Deploy Easytrade
   include_tasks: deploy.yml
 
-- name: Apply Live Debugger Environment Variables
-  include_tasks: live-debugger.yml
-
 - name: Deploy Kubernetes Ingress
   include_tasks: ingress.yml
 
