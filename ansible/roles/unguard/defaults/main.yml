@@ -1,4 +1,4 @@
 ---
-unguard_release_version: "v0.13.0"
+unguard_release_version: "v0.23.0"
 unguard_namespace: "unguard"
 unguard_remote_origin: "https://github.com/dynatrace-oss/unguard.git"
