@@ -46,5 +46,5 @@ Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [
 | Dynatrace Operator                  | [v1.7.3](https://github.com/Dynatrace/dynatrace-operator/releases/tag/v1.7.3)    |
 | Easytrade                           | [v1.3.16](https://github.com/Dynatrace/easytrade/releases/tag/v1.3.16)    |
 | OpenTelemetry Demo                  | [2.2.0](https://github.com/open-telemetry/opentelemetry-demo/releases/tag/2.2.0)     |
-| Unguard                             | [v0.13.0](https://github.com/dynatrace-oss/unguard/releases/tag/v0.13.0)   |
+| Unguard                             | [v0.23.0](https://github.com/dynatrace-oss/unguard/releases/tag/v0.23.0)   |
 | VSCode (code-server)                | [v4.112.0](https://github.com/coder/code-server/releases/tag/v4.112.0)   |
