@@ -3,11 +3,11 @@
   hosts: localhost
   connection: local
   vars:
-    aether_config_file_path: './aether_config_vars.yml'
+    aether_config_file_path: './ansible_config_vars.yml'
   tasks:
     - name: Load aether config vars
       include_vars:
-        file: "{{ aether_config_file_path }}"
+        file: "{{ ansible_config_file_path }}"
 
     - name: Initialize business event facts
       include_role:
