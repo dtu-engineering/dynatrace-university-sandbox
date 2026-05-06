@@ -3,7 +3,7 @@
   hosts: localhost
   connection: local
   vars:
-    aether_config_file_path: './ansible_config_vars.yml'
+    ansible_config_file_path: './ansible_config_vars.yml'
   tasks:
     - name: Load aether config vars
       include_vars:
