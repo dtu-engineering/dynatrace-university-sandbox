@@ -2,21 +2,71 @@
 - name: Dynatrace University Sandbox - Core
   hosts: localhost
   connection: local
-  vars_files: 
-    - ./ansible_config_vars.yml
+  vars:
+    aether_config_file_path: './aether_config_vars.yml'
   tasks:
-    - include_role:
-        name: kubernetes
-    - include_role:
-        name: dynatrace-settings
-    - include_role:
-        name: dynatrace-operator
-    - include_role:
-        name: dynatrace-settings
-        tasks_from: kubernetes-monitoring.yml
-    - include_role:
-        name: vscode
-    - include_role:
-        name: display-links
+    - name: Load aether config vars
+      include_vars:
+        file: "{{ aether_config_file_path }}"
+
+    - name: Initialize business event facts
+      include_role:
+        name: business-events
+        tasks_from: bizevent-set-facts.yml
+
+    - name: Send START business event
+      include_role:
+        name: business-events
+        tasks_from: bizevent-send.yml
       vars:
-        sandbox_scenario: "core"
+        bizevent_type: "aether-instance-sandbox-start"
+        bizevent_category: "INFO"
+
+    - block:
+        - name: Load sandbox config vars
+          include_vars:
+            file: ./ansible_config_vars.yml
+
+        - name: Deploy Kubernetes base
+          include_role:
+            name: kubernetes
+
+        - name: Apply Dynatrace settings
+          include_role:
+            name: dynatrace-settings
+
+        - name: Deploy Dynatrace Operator
+          include_role:
+            name: dynatrace-operator
+
+        - name: Enable Kubernetes monitoring
+          include_role:
+            name: dynatrace-settings
+            tasks_from: kubernetes-monitoring.yml
+
+        - name: Deploy VS Code Server
+          include_role:
+            name: vscode
+
+        - name: Display access links
+          include_role:
+            name: display-links
+          vars:
+            sandbox_scenario: "core"
+
+        - name: Send SUCCESS business event
+          include_role:
+            name: business-events
+            tasks_from: bizevent-send.yml
+          vars:
+            bizevent_type: "aether-instance-sandbox-complete"
+            bizevent_category: "INFO"
+
+      rescue:
+        - name: Send FAILURE business event
+          include_role:
+            name: business-events
+            tasks_from: bizevent-send.yml
+          vars:
+            bizevent_type: "aether-instance-sandbox-failure"
+            bizevent_category: "FAILURE"
