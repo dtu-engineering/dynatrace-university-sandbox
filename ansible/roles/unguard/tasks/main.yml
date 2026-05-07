@@ -11,6 +11,7 @@
 
 - name: Verify Unguard Application
   include_role:
-    name: app-availability
+    name: health-check
+    tasks_from: app-availability.yml
   vars:
     verify_url: "https://unguard.{{ ingress_domain }}/ui"

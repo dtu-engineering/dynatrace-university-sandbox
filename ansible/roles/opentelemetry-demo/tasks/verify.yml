@@ -2,6 +2,7 @@
 
 - name: Check Opentelemetry Demo Application Frontend
   include_role:
-    name: app-availability
+    name: health-check
+    tasks_from: app-availability.yml
   vars:
     verify_url: "https://astroshop.{{ ingress_domain }}"

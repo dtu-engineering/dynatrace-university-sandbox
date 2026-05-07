@@ -82,3 +82,7 @@
           vars:
             bizevent_type: "aether-instance-sandbox-failure"
             bizevent_category: "FAILURE"
+
+        - name: Explicitly fail playbook
+          fail:
+            msg: "Playbook failed - triggering failure exit code"
