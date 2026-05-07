@@ -21,4 +21,4 @@
 
 - name: Pause for OpenTelemetry Demo deployment
   pause:
-    seconds: 60
+    seconds: 180

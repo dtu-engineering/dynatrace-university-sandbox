@@ -8,3 +8,9 @@
 
 - name: Deploy Kubernetes Ingress
   include_tasks: ingress.yml
+
+- name: Verify Unguard Application
+  include_role:
+    name: app-availability
+  vars:
+    verify_url: "https://unguard.{{ ingress_domain }}/ui"
