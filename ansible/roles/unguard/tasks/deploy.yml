@@ -86,7 +86,7 @@
 
 - name: Pause for deployment
   pause:
-    seconds: 30
+    seconds: 60
 
 - name: Print Live Debugger env vars from unguard frontend (if present)
   ansible.builtin.shell: |

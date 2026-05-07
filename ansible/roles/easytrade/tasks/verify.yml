@@ -24,6 +24,13 @@
   delay: 30
   until: easytrade_ready_count.stdout | int == (easytrade_pod_count.stdout | int)
 
+- name: Verify Easytrade Application
+  include_role:
+    name: health-check
+    tasks_from: app-availability.yml
+  vars:
+    verify_url: "https://easytrade.{{ ingress_domain }}"
+
 - name: Pause for easytrade to settle
   pause:
     seconds: 180
