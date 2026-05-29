@@ -51,6 +51,22 @@
 # Docker Tasks #
 ################
 
+#FIXED
+- name: Override EC2 apt mirror to official Ubuntu archive
+  become: true
+  ansible.builtin.shell: |
+    sed -i 's|http://.*\.ec2\.archive\.ubuntu\.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list
+    sed -i 's|http://.*\.ec2\.archive\.ubuntu\.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true
+  args:
+    executable: /bin/bash
+
+#FIXED
+- name: Clean apt cache to force fresh fetch from new mirror
+  become: true
+  ansible.builtin.shell: apt-get clean && rm -rf /var/lib/apt/lists/*
+  args:
+    executable: /bin/bash
+
 - name: Ensure Docker prerequisites
   become: true
   ansible.builtin.apt:
