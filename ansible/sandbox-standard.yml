@@ -35,15 +35,6 @@
           include_role:
             name: dynatrace-settings
 
-        - name: Deploy Dynatrace Operator
-          include_role:
-            name: dynatrace-operator
-
-        - name: Enable Kubernetes monitoring
-          include_role:
-            name: dynatrace-settings
-            tasks_from: kubernetes-monitoring.yml
-
         - name: Deploy VS Code Server
           include_role:
             name: vscode
