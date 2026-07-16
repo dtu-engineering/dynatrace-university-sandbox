@@ -1,0 +1,13 @@
+---
+
+- name: Fetch and extract SmartFreight release artifact
+  include_tasks: fetch_release.yml
+
+- name: Deploy SmartFreight
+  include_tasks: deploy.yml
+
+- name: Deploy Kubernetes Ingress
+  include_tasks: ingress.yml
+
+- name: Verify SmartFreight Deployment
+  include_tasks: verify.yml

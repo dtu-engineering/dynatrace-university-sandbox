@@ -1,0 +1,46 @@
+---
+
+- name: Pause for SmartFreight deployment
+  ansible.builtin.pause:
+    seconds: 120
+
+- name: Count all SmartFreight pods
+  ansible.builtin.shell: |
+    kubectl -n "{{ smartfreight_namespace }}" get pods --no-headers | wc -l
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: smartfreight_pod_count
+  changed_when: false
+  retries: 20
+  delay: 10
+  until: smartfreight_pod_count.stdout | int > 0
+
+- name: Wait for all SmartFreight pods to be Running and Ready
+  ansible.builtin.shell: |
+    kubectl -n "{{ smartfreight_namespace }}" get pods -o json \
+    | jq '[.items[]
+           | select(.status.phase=="Running")
+           | select(all(.status.containerStatuses[]; .ready==true))
+          ] | length'
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: smartfreight_ready_count
+  changed_when: false
+  retries: 20
+  delay: 30
+  until: smartfreight_ready_count.stdout | int == (smartfreight_pod_count.stdout | int)
+
+- name: Verify SmartFreight Application
+  ansible.builtin.include_role:
+    name: health-check
+    tasks_from: app-availability.yml
+  vars:
+    verify_url: "https://smartfreight.{{ ingress_domain }}"
+
+- name: Pause for SmartFreight to settle
+  ansible.builtin.pause:
+    seconds: 180

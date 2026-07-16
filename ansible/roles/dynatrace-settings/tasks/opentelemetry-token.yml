@@ -1,0 +1,21 @@
+---
+
+- name: Create Dynatrace Opentelemetry Ingest Token
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
+    method: POST
+    status_code: [200, 201]
+    body:
+      name: "Dynatrace Opentelemetry Ingest Token"
+      scopes:
+        - openTelemetryTrace.ingest
+        - metrics.ingest
+        - logs.ingest
+    body_format: json
+    headers:
+      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+  register: dynatrace_opentelemetry_token_result
+
+- name: Set Dynatrace Opentelemetry Ingest Token Fact
+  set_fact:
+    dynatrace_opentelemetry_token: "{{ dynatrace_opentelemetry_token_result.json.token }}"
