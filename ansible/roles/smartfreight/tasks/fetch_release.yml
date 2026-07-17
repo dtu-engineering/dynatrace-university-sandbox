@@ -2,6 +2,31 @@
 # Downloads and extracts the versioned SmartFreight release artifact from
 # S3 (smartfreight_s3_bucket / smartfreight_s3_object_key).
 
+- name: Check whether AWS CLI is already installed
+  ansible.builtin.command: aws --version
+  register: smartfreight_aws_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Download AWS CLI v2 installer
+  ansible.builtin.get_url:
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+    dest: /tmp/awscliv2.zip
+    mode: "0644"
+  when: smartfreight_aws_cli_check.rc != 0
+
+- name: Unpack AWS CLI v2 installer
+  ansible.builtin.unarchive:
+    src: /tmp/awscliv2.zip
+    dest: /tmp
+    remote_src: true
+  when: smartfreight_aws_cli_check.rc != 0
+
+- name: Install AWS CLI v2
+  ansible.builtin.command: /tmp/aws/install
+  become: true
+  when: smartfreight_aws_cli_check.rc != 0
+
 - name: Check whether this release has already been fetched
   ansible.builtin.stat:
     path: "{{ smartfreight_release_marker }}"
