@@ -55,7 +55,7 @@
 - name: Extract SmartFreight release archive
   ansible.builtin.unarchive:
     src: "{{ smartfreight_release_archive }}"
-    dest: "{{ smartfreight_release_dir }}"
+    dest: "{{ role_path }}/files"
     remote_src: true
   when: not smartfreight_release_marker_stat.stat.exists
   register: smartfreight_extract
