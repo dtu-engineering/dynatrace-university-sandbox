@@ -162,7 +162,7 @@
       --set imagePullSecret=ecr-pull-secret \
       --set postgres.host=postgresql \
       --set service.type=ClusterIP \
-      --wait
+      --wait --timeout 10m
   args:
     executable: /bin/bash
   environment:
