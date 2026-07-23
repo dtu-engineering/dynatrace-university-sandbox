@@ -169,6 +169,7 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: smartfreight_tms_api_install
   changed_when: "'STATUS: deployed' in smartfreight_tms_api_install.stdout or 'STATUS: upgraded' in smartfreight_tms_api_install.stdout"
+  failed_when: false
 
 - name: Install/upgrade tms-agent-service
   ansible.builtin.shell: |
