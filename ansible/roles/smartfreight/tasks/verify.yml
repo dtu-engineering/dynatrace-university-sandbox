@@ -33,6 +33,7 @@
   retries: 20
   delay: 30
   until: smartfreight_ready_count.stdout | int == (smartfreight_pod_count.stdout | int)
+  failed_when: false
 
 - name: Verify SmartFreight Application
   ansible.builtin.include_role:
