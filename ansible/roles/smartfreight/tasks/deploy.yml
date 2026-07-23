@@ -235,7 +235,7 @@
       --set "image.tag={{ smartfreight_image_tag }}" \
       --set imagePullSecret=ecr-pull-secret \
       --set service.type=ClusterIP \
-      --set tmsApiUrl=http://tms-api:8000 \
+      --set tmsApiUrl=http://tms-api.{{ smartfreight_namespace }}.svc.cluster.local:8000 \
       --wait
   args:
     executable: /bin/bash
