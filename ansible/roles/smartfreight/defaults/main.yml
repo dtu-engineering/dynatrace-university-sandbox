@@ -11,14 +11,14 @@ smartfreight_helm_charts_dir: "{{ smartfreight_release_dir }}/deploy/helm/charts
 
 # ── AWS / ECR ──────────────────────────────────────────────────────────────────
 smartfreight_aws_region: "us-east-1"
-smartfreight_ecr_repo_prefix: "smartfreight"
+smartfreight_ecr_repo_prefix: "dtu-smartfreight-labs"
 smartfreight_image_tag: "latest"
 smartfreight_ecr_registry: "" # blank to resolve dynamically via `aws sts get-caller-identity`
 
 # ── Credentials ──────────────────────────────────────────────────────────────────
 smartfreight_postgres_password: "smartfreight"
 smartfreight_admin_username: "admin"
-smartfreight_admin_password: "smartfreight-demo"
+smartfreight_admin_password: "{{ instance_password }}"
 
 # ── Bedrock model IDs ────────────────────────────────────────────────────────
 smartfreight_bedrock_supervisor_model: "us.amazon.nova-pro-v1:0"
