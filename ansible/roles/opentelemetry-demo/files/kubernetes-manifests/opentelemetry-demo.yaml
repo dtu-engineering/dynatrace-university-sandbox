@@ -19457,9 +19457,12 @@ spec:
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3
           resources:
+            # CPU request trimmed from 500m — observed usage ~15-23m at idle.
+            # Memory request trimmed from 1Gi — observed RSS ~635Mi (heap capped at
+            # 1G via KAFKA_HEAP_OPTS above). Limits unchanged. t3a.2xlarge sizing pass.
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 100m
+              memory: 768Mi
             limits:
               cpu: "1000m"
               memory: 2Gi
@@ -20140,11 +20143,15 @@ spec:
         - name: metrics
           containerPort: 9600
         resources:
+          # CPU request trimmed from 1000m — observed usage ~15-24m at idle.
+          # Memory request raised from 100Mi to 900Mi — observed RSS (~1000Mi) was
+          # actually running well above the old request, close to the 1100Mi limit.
+          # t3a.2xlarge sizing pass.
           limits:
             memory: 1100Mi
           requests:
-            cpu: 1000m
-            memory: 100Mi
+            cpu: 150m
+            memory: 900Mi
         env:
         - name: node.name
           valueFrom:
