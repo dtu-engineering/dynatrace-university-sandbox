@@ -2,7 +2,7 @@
 # ── Release artifact (S3) ──────────────────────────────────────────────────────────────────
 smartfreight_namespace: "smartfreight"
 smartfreight_s3_bucket: "dtulabs-university-sandbox"
-smartfreight_s3_object_key: "smartfreight/smartfreight_24854cc.zip"
+smartfreight_s3_object_key: "smartfreight/smartfreight_2c376d5.zip"
 
 smartfreight_release_dir: "{{ role_path }}/files/smartfreight"
 smartfreight_release_archive: "/tmp/{{ smartfreight_s3_object_key | basename }}"
