@@ -161,15 +161,15 @@
 - name: Set pipeline objectId facts
   set_fact:
     dt_pipeline_fastapi_id: >-
-      {{ dt_openpipeline_pipelines_lookup.json.items
+      {{ dt_openpipeline_pipelines_lookup.json['items']
          | selectattr('value.customId', 'equalto', 'pipeline_SmartFreight_FastAPI_Pipeline_2303')
          | map(attribute='objectId') | list | first | default('') }}
     dt_pipeline_a2a_id: >-
-      {{ dt_openpipeline_pipelines_lookup.json.items
+      {{ dt_openpipeline_pipelines_lookup.json['items']
          | selectattr('value.customId', 'equalto', 'pipeline_SmartFreight_A2A_Pipeline_7214')
          | map(attribute='objectId') | list | first | default('') }}
     dt_pipeline_nginx_id: >-
-      {{ dt_openpipeline_pipelines_lookup.json.items
+      {{ dt_openpipeline_pipelines_lookup.json['items']
          | selectattr('value.customId', 'equalto', 'pipeline_SmartFreight_nginx_Pipeline_2556')
          | map(attribute='objectId') | list | first | default('') }}
 
@@ -200,8 +200,8 @@
 - name: Set existing routing objectId fact (empty string if none exists yet)
   set_fact:
     dt_routing_object_id: >-
-      {{ (dt_openpipeline_routing_lookup.json.items | map(attribute='objectId') | list | first)
-         if (dt_openpipeline_routing_lookup.json.items | length > 0) else '' }}
+      {{ (dt_openpipeline_routing_lookup.json['items'] | map(attribute='objectId') | list | first)
+         if (dt_openpipeline_routing_lookup.json['items'] | length > 0) else '' }}
 
 - name: Create SmartFreight OpenPipeline Spans routing table (no existing object yet)
   uri:
