@@ -6,6 +6,9 @@
 - name: Deploy SmartFreight
   include_tasks: deploy.yml
 
+- name: Configure Dynatrace OpenPipeline for Spans
+  include_tasks: openpipeline-spans.yml
+
 - name: Deploy Kubernetes Ingress
   include_tasks: ingress.yml
 
