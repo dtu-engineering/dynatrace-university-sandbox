@@ -11,7 +11,7 @@ smartfreight_helm_charts_dir: "{{ smartfreight_release_dir }}/deploy/helm/charts
 
 # ── AWS / ECR ──────────────────────────────────────────────────────────────────
 smartfreight_aws_region: "us-east-1"
-smartfreight_ecr_repo_prefix: "dtu-smartfreight-labs"
+smartfreight_ecr_repo_prefix: "dtu-smartfreight-labs-prod"
 smartfreight_image_tag: "latest"
 smartfreight_ecr_registry: "" # blank to resolve dynamically via `aws sts get-caller-identity`
 

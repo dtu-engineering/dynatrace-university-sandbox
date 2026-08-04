@@ -19,6 +19,9 @@ Lightweight Kubernetes distribution | [docs](https://docs.k3s.io/)
 - **Unguard**  
   A Dynatrace open-source and security‑focused demo application used for vulnerability and runtime analysis scenarios | [docs](https://github.com/dynatrace-oss/unguard)
 
+- **SmartFreight**  
+  A Dynatrace demo application used for AI observability utilizing AWS Bedrock and several providers and models | [docs](https://github.com/dynatrace-oss/unguard)
+
 - **VSCode (code-server)**  
   A fully functional Visual Studio Code application running in a web browser for local filesystem and terminal access  | [docs](https://coder.com/docs/code-server/guide)
 
