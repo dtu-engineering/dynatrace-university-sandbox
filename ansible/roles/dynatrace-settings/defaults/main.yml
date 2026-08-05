@@ -1,0 +1,11 @@
+---
+# ── AI tooling: Bedrock model routing ───────────────────────────────────────
+# Shared across every AI coding tool this role configures (Claude Code CLI
+# today). This instance has no Anthropic API key -- every tool routes to
+# Claude via Amazon Bedrock instead, using whatever AWS credentials it finds
+# (the EC2 instance role via IMDS, no static keys needed).
+#
+ai_tooling_bedrock_region: "us-east-1"
+ai_tooling_claude_sonnet_model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+ai_tooling_claude_haiku_model: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+ai_tooling_node_version: "20"

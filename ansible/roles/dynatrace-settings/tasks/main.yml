@@ -14,3 +14,9 @@
 
 - name: Enable Kubernetes App and Cluster Monitoring
   include_tasks: kubernetes-monitoring.yml
+
+- name: Verify Bedrock access on the instance profile
+  include_tasks: bedrock-access-check.yml
+
+- name: Configure Claude Code CLI for Bedrock
+  include_tasks: claude-code-bedrock.yml
