@@ -120,7 +120,7 @@
            | select(all(.status.containerStatuses[]; .ready==true))] | length'
   register: oneagent_ready
   retries: 15
-  delay: 30
+  delay: 40
   until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
 
 - name: Ensure all ActiveGate pods are Running and Ready
