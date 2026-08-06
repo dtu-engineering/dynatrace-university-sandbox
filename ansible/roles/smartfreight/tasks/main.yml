@@ -6,8 +6,18 @@
 - name: Deploy SmartFreight
   include_tasks: deploy.yml
 
-- name: Configure Dynatrace OpenPipeline for Spans
-  include_tasks: openpipeline-spans.yml
+- name: Configure Dynatrace OpenPipeline for Spans (best-effort, non-critical)
+  block:
+    - name: Configure Dynatrace OpenPipeline for Spans
+      include_tasks: openpipeline-spans.yml
+  rescue:
+    - name: Warn that OpenPipeline Spans configuration failed (non-critical, continuing)
+      ansible.builtin.debug:
+        msg: >-
+          OpenPipeline Spans configuration failed and was skipped. This is best-effort span
+          noise reduction, not required for SmartFreight to run - continuing the playbook.
+          Re-run with -vvv, or check the failed task's registered result above, for the
+          actual Dynatrace API error if you want to fix it.
 
 - name: Deploy Kubernetes Ingress
   include_tasks: ingress.yml

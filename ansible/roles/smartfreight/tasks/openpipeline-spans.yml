@@ -203,6 +203,32 @@
       {{ (dt_openpipeline_routing_lookup.json['items'] | map(attribute='objectId') | list | first)
          if (dt_openpipeline_routing_lookup.json['items'] | length > 0) else '' }}
 
+# Defined once as a fact (rather than a YAML anchor on the `value:` key below) so both the
+# POST and PUT bodies can reference the identical routing-entries object without either one
+# accidentally capturing the wrong nesting level — that mismatch (anchoring only the inner
+# `{routingEntries: [...]}` instead of a `{value: {routingEntries: [...]}}` wrapper) was the
+# cause of the PUT's "value must not be null" 400: the anchor reference sent the entries
+# object as the top-level body, so the API's required `value` field was simply absent.
+- name: Set SmartFreight OpenPipeline Spans routing table value
+  set_fact:
+    dt_routing_value:
+      routingEntries:
+        - description: "SmartFreight FastAPI Route"
+          enabled: true
+          matcher: 'otel.scope.name == "opentelemetry.instrumentation.fastapi"'
+          pipelineType: "custom"
+          pipelineId: "{{ dt_pipeline_fastapi_id }}"
+        - description: "SmartFreight A2A Route"
+          enabled: true
+          matcher: 'otel.scope.name == "a2a-python-sdk"'
+          pipelineType: "custom"
+          pipelineId: "{{ dt_pipeline_a2a_id }}"
+        - description: "SmartFreight nginx Route"
+          enabled: true
+          matcher: 'k8s.namespace.name == "smartfreight"'
+          pipelineType: "custom"
+          pipelineId: "{{ dt_pipeline_nginx_id }}"
+
 - name: Create SmartFreight OpenPipeline Spans routing table (no existing object yet)
   uri:
     url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
@@ -214,32 +240,16 @@
     body:
       - schemaId: "builtin:openpipeline.spans.routing"
         scope: "environment"
-        value: &routing_value
-          routingEntries:
-            - description: "SmartFreight FastAPI Route"
-              enabled: true
-              matcher: 'otel.scope.name == "opentelemetry.instrumentation.fastapi"'
-              pipelineType: "custom"
-              pipelineId: "{{ dt_pipeline_fastapi_id }}"
-            - description: "SmartFreight A2A Route"
-              enabled: true
-              matcher: 'otel.scope.name == "a2a-python-sdk"'
-              pipelineType: "custom"
-              pipelineId: "{{ dt_pipeline_a2a_id }}"
-            - description: "SmartFreight nginx Route"
-              enabled: true
-              matcher: 'k8s.namespace.name == "smartfreight"'
-              pipelineType: "custom"
-              pipelineId: "{{ dt_pipeline_nginx_id }}"
+        value: "{{ dt_routing_value }}"
     body_format: json
     return_content: true
     status_code: [200, 201]
   register: dt_openpipeline_routing_create_result
   when: dt_routing_object_id | length == 0
 
-# NOTE: PUT /api/v2/settings/objects/{objectId} takes the raw `value` object directly (no
-# schemaId/scope/value wrapper, no surrounding array) — this is a different body shape than
-# the create endpoint above. This is the part most likely to need correcting if it 400s.
+# PUT /api/v2/settings/objects/{objectId} takes a `SettingsObjectUpdate`: no schemaId/scope
+# (those aren't updatable), but `value` IS still a required wrapper field, not the bare
+# routingEntries object — see the constraintViolations 400 this produced before this fix.
 - name: Replace SmartFreight OpenPipeline Spans routing table (object already exists)
   uri:
     url: "{{ dynatrace_environment_url }}/api/v2/settings/objects/{{ dt_routing_object_id }}"
@@ -248,7 +258,8 @@
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
       Authorization: "Api-Token {{ dynatrace_settings_token }}"
-    body: *routing_value
+    body:
+      value: "{{ dt_routing_value }}"
     body_format: json
     return_content: true
     status_code: [200, 204]
