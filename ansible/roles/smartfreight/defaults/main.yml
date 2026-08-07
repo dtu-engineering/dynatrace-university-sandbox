@@ -21,6 +21,8 @@ smartfreight_admin_username: "admin"
 smartfreight_admin_password: "{{ instance_password }}"
 
 # ── Bedrock model IDs ────────────────────────────────────────────────────────
+# These models are overridden by the extra_ansible_vars passed from Terraform with a specific tagged 
+# inference profile to ensure bedrock costs are associated with the applicable `aether:environment:id` and `aether:environment:costcenter` tags.
 smartfreight_bedrock_supervisor_model: "us.amazon.nova-pro-v1:0"
 smartfreight_bedrock_pricing_model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 smartfreight_bedrock_guardrail_judge_model: "us.amazon.nova-micro-v1:0"
