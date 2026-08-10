@@ -1,0 +1,33 @@
+---
+# Verifies the instance role can actually call Bedrock before the AI tooling
+# tasks below try to use it. This role runs ON the instance and therefore
+# cannot grant IAM permissions to its own instance profile -- that has to
+# happen from outside (Terraform, or whatever bootstraps this box). If this
+# check fails, see the smartfreight repo's
+# deploy/terraform/environments/lite-ec2/main.tf (resource
+# aws_iam_policy.bedrock_access) for the actual policy to attach:
+# bedrock:InvokeModel + bedrock:InvokeModelWithResponseStream, scoped to the
+# foundation-model / inference-profile ARNs for whichever models you use.
+
+- name: Check whether the instance role can list Bedrock foundation models
+  ansible.builtin.command: >
+    aws bedrock list-foundation-models
+    --region {{ ai_tooling_bedrock_region }}
+    --query "modelSummaries[0].modelId"
+    --output text
+  register: dt_bedrock_access_check
+  changed_when: false
+  failed_when: false
+
+- name: Warn if the instance role lacks Bedrock permissions
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: this instance's IAM role cannot call Bedrock
+      ({{ dt_bedrock_access_check.stderr | default('unknown error') | trim }}).
+      Claude Code CLI and any other tool configured below to use Bedrock will fail until
+      bedrock:InvokeModel + bedrock:InvokeModelWithResponseStream are attached to this
+      instance's IAM role. This ansible role cannot grant that itself -- see
+      deploy/terraform/environments/lite-ec2/main.tf (aws_iam_policy.bedrock_access) in the
+      smartfreight repo for the policy to attach, or your own instance-provisioning process
+      if that's not how this box's role was created.
+  when: dt_bedrock_access_check.rc != 0

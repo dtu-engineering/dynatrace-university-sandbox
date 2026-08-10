@@ -1,0 +1,22 @@
+---
+# Mirrors deploy/ec2_bootstrap.sh Phase 5: apply the Traefik Ingress
+# routing smartfreight.<domain> -> frontend.
+
+- name: Ensure release directory exists
+  ansible.builtin.file:
+    path: "{{ smartfreight_release_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Template SmartFreight ingress manifest
+  ansible.builtin.template:
+    src: ingress/smartfreight-ingress.yaml.j2
+    dest: "{{ smartfreight_release_dir }}/smartfreight-ingress.yaml"
+    mode: "0644"
+
+- name: Apply SmartFreight ingress
+  ansible.builtin.command: kubectl apply -f "{{ smartfreight_release_dir }}/smartfreight-ingress.yaml"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: smartfreight_ingress_apply
+  changed_when: "'created' in smartfreight_ingress_apply.stdout or 'configured' in smartfreight_ingress_apply.stdout"

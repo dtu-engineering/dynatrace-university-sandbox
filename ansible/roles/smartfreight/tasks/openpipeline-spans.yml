@@ -1,0 +1,276 @@
+---
+# Dynatrace OpenPipeline — Spans, ported from the SmartFreight repo's AKS Terraform
+# environment (deploy/terraform/environments/lite/main.tf, resources
+# dynatrace_openpipeline_v2_spans_pipelines / dynatrace_openpipeline_v2_spans_routing).
+# That environment configures this via the Dynatrace Terraform provider; this deployment
+# uses ansible for all Dynatrace-side config, so this file re-implements the same three
+# pipelines + routing table as native Settings API calls (schemaId
+# builtin:openpipeline.spans.pipelines / builtin:openpipeline.spans.routing), matching the
+# uri-module pattern already used everywhere else in the dynatrace-settings role.
+#
+# BEST-EFFORT NOTICE: the JSON `value` shape below is my translation of the working
+# Terraform HCL blocks (block nesting -> JSON object/array), not something I could verify
+# against a live tenant's schema. `return_content: true` is set on every call, so if a task
+# fails, run with -vvv and check `<result>.json` / `<result>.content` for the schema's
+# validation error — it'll usually name the exact field it didn't like. This whole file is
+# safe to re-run once field names are corrected.
+#
+# What this configures (unchanged behavior from the AKS Terraform):
+#   - SmartFreight FastAPI Pipeline  — drops noisy `* http send` / `* http receive` spans
+#     that OTel's FastAPI instrumentation emits per-request.
+#   - SmartFreight A2A Pipeline      — drops all A2A SDK internal lifecycle spans except
+#     `*_run_event_stream` and `*send_message*` (the only ones carrying user-visible work).
+#   - SmartFreight nginx Pipeline    — drops `/health` polling and static asset
+#     (*.css/*.js/*.svg) spans.
+#   - Routing table                 — routes spans to the three pipelines above by
+#     `otel.scope.name` (fastapi/a2a) or `k8s.namespace.name` (nginx).
+#
+# WARNING — routing table is a tenant-wide singleton (same caveat as the Terraform
+# runbook): re-running this file REPLACES every entry in the tenant's Spans routing table,
+# not just the three added here. Fine for a fresh/dedicated tenant; check the Dynatrace UI
+# first on a shared tenant.
+
+- name: Require dynatrace_settings_token to be set
+  ansible.builtin.assert:
+    that:
+      - dynatrace_settings_token is defined
+      - dynatrace_settings_token | length > 0
+    fail_msg: >-
+      dynatrace_settings_token is not set — the dynatrace-settings role (which mints it in
+      tasks/access-token.yml) must run before the smartfreight role in your playbook.
+
+# ── Pipelines ────────────────────────────────────────────────────────────────
+
+- name: Create/update SmartFreight FastAPI OpenPipeline (drop http send/receive noise)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:openpipeline.spans.pipelines"
+        scope: "environment"
+        value:
+          displayName: "SmartFreight FastAPI Pipeline"
+          customId: "pipeline_SmartFreight_FastAPI_Pipeline_2303"
+          processing:
+            processors:
+              - type: "drop"
+                id: "processor_Drop_Spans_3709"
+                description: "Drop http send"
+                matcher: 'matchesValue(span.name, "* http send")'
+                enabled: true
+              - type: "drop"
+                id: "processor_Drop_http_receive_3551"
+                description: "Drop http receive"
+                matcher: 'matchesValue(span.name, "* http receive")'
+                enabled: true
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_openpipeline_fastapi_result
+  failed_when: false
+
+- name: Create/update SmartFreight A2A OpenPipeline (drop noisy A2A lifecycle spans)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:openpipeline.spans.pipelines"
+        scope: "environment"
+        value:
+          displayName: "SmartFreight A2A Pipeline"
+          customId: "pipeline_SmartFreight_A2A_Pipeline_7214"
+          processing:
+            processors:
+              - type: "drop"
+                id: "processor_Drop_noisy_A2A_7449"
+                description: "Drop noisy A2A"
+                matcher: 'not matchesValue(span.name, "*_run_event_stream") and not matchesValue(span.name, "*send_message*")'
+                enabled: true
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_openpipeline_a2a_result
+  failed_when: false
+
+- name: Create/update SmartFreight nginx OpenPipeline (drop health checks + static assets)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:openpipeline.spans.pipelines"
+        scope: "environment"
+        value:
+          displayName: "SmartFreight nginx Pipeline"
+          customId: "pipeline_SmartFreight_nginx_Pipeline_2556"
+          processing:
+            processors:
+              - type: "drop"
+                id: "processor_Drop__health_1373"
+                description: "Drop /health"
+                matcher: 'matchesValue(url.path, "/health")'
+                enabled: true
+              - type: "drop"
+                id: "processor_Drop_CSS_4296"
+                description: "Drop CSS"
+                matcher: 'matchesPhrase(url.path, "*.css")'
+                enabled: true
+              - type: "drop"
+                id: "processor_Drop_JavaScript_3648"
+                description: "Drop JavaScript"
+                matcher: 'matchesPhrase(url.path, "*.js")'
+                enabled: true
+              - type: "drop"
+                id: "processor_Drop_Images_9260"
+                description: "Drop Images"
+                matcher: 'matchesPhrase(url.path, "*.svg")'
+                enabled: true
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_openpipeline_nginx_result
+  failed_when: false
+
+# ── Resolve pipeline objectIds ───────────────────────────────────────────────
+# The routing table references pipelines by objectId. A fresh-create response carries it
+# directly, but a 409 (already exists) won't — so look all three up explicitly either way.
+# This also self-heals if a prior partial run created a pipeline a different way.
+
+- name: Look up SmartFreight OpenPipeline pipeline objectIds
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects?schemaIds=builtin:openpipeline.spans.pipelines&scopes=environment&fields=objectId,value"
+    method: GET
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    return_content: true
+    status_code: [200]
+  register: dt_openpipeline_pipelines_lookup
+
+- name: Set pipeline objectId facts
+  set_fact:
+    dt_pipeline_fastapi_id: >-
+      {{ dt_openpipeline_pipelines_lookup.json['items']
+         | selectattr('value.customId', 'equalto', 'pipeline_SmartFreight_FastAPI_Pipeline_2303')
+         | map(attribute='objectId') | list | first | default('') }}
+    dt_pipeline_a2a_id: >-
+      {{ dt_openpipeline_pipelines_lookup.json['items']
+         | selectattr('value.customId', 'equalto', 'pipeline_SmartFreight_A2A_Pipeline_7214')
+         | map(attribute='objectId') | list | first | default('') }}
+    dt_pipeline_nginx_id: >-
+      {{ dt_openpipeline_pipelines_lookup.json['items']
+         | selectattr('value.customId', 'equalto', 'pipeline_SmartFreight_nginx_Pipeline_2556')
+         | map(attribute='objectId') | list | first | default('') }}
+
+- name: Require all three pipeline objectIds were resolved
+  ansible.builtin.assert:
+    that:
+      - dt_pipeline_fastapi_id | length > 0
+      - dt_pipeline_a2a_id | length > 0
+      - dt_pipeline_nginx_id | length > 0
+    fail_msg: >-
+      Could not resolve one or more pipeline objectIds from the lookup response — check
+      dt_openpipeline_pipelines_lookup.json above; the customId field name or the filter
+      query params may not match this tenant's actual schema.
+
+# ── Routing table (singleton — GET-then-POST-or-PUT for a real idempotent replace) ──────
+
+- name: Look up existing OpenPipeline Spans routing object (singleton)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects?schemaIds=builtin:openpipeline.spans.routing&scopes=environment&fields=objectId"
+    method: GET
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    return_content: true
+    status_code: [200]
+  register: dt_openpipeline_routing_lookup
+
+- name: Set existing routing objectId fact (empty string if none exists yet)
+  set_fact:
+    dt_routing_object_id: >-
+      {{ (dt_openpipeline_routing_lookup.json['items'] | map(attribute='objectId') | list | first)
+         if (dt_openpipeline_routing_lookup.json['items'] | length > 0) else '' }}
+
+# Defined once as a fact (rather than a YAML anchor on the `value:` key below) so both the
+# POST and PUT bodies can reference the identical routing-entries object without either one
+# accidentally capturing the wrong nesting level — that mismatch (anchoring only the inner
+# `{routingEntries: [...]}` instead of a `{value: {routingEntries: [...]}}` wrapper) was the
+# cause of the PUT's "value must not be null" 400: the anchor reference sent the entries
+# object as the top-level body, so the API's required `value` field was simply absent.
+- name: Set SmartFreight OpenPipeline Spans routing table value
+  set_fact:
+    dt_routing_value:
+      routingEntries:
+        - description: "SmartFreight FastAPI Route"
+          enabled: true
+          matcher: 'otel.scope.name == "opentelemetry.instrumentation.fastapi"'
+          pipelineType: "custom"
+          pipelineId: "{{ dt_pipeline_fastapi_id }}"
+        - description: "SmartFreight A2A Route"
+          enabled: true
+          matcher: 'otel.scope.name == "a2a-python-sdk"'
+          pipelineType: "custom"
+          pipelineId: "{{ dt_pipeline_a2a_id }}"
+        - description: "SmartFreight nginx Route"
+          enabled: true
+          matcher: 'k8s.namespace.name == "smartfreight"'
+          pipelineType: "custom"
+          pipelineId: "{{ dt_pipeline_nginx_id }}"
+
+- name: Create SmartFreight OpenPipeline Spans routing table (no existing object yet)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      - schemaId: "builtin:openpipeline.spans.routing"
+        scope: "environment"
+        value: "{{ dt_routing_value }}"
+    body_format: json
+    return_content: true
+    status_code: [200, 201]
+  register: dt_openpipeline_routing_create_result
+  when: dt_routing_object_id | length == 0
+
+# PUT /api/v2/settings/objects/{objectId} takes a `SettingsObjectUpdate`: no schemaId/scope
+# (those aren't updatable), but `value` IS still a required wrapper field, not the bare
+# routingEntries object — see the constraintViolations 400 this produced before this fix.
+- name: Replace SmartFreight OpenPipeline Spans routing table (object already exists)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects/{{ dt_routing_object_id }}"
+    method: PUT
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+    body:
+      value: "{{ dt_routing_value }}"
+    body_format: json
+    return_content: true
+    status_code: [200, 204]
+  register: dt_openpipeline_routing_update_result
+  when: dt_routing_object_id | length > 0
+
+- name: Report OpenPipeline configuration results
+  ansible.builtin.debug:
+    msg:
+      - "FastAPI pipeline objectId: {{ dt_pipeline_fastapi_id }}"
+      - "A2A pipeline objectId:     {{ dt_pipeline_a2a_id }}"
+      - "nginx pipeline objectId:   {{ dt_pipeline_nginx_id }}"
+      - "Routing table: {{ 'created' if dt_routing_object_id | length == 0 else 'replaced (objectId ' + dt_routing_object_id + ')' }}"
+      - "WARNING: the routing table is a tenant-wide singleton — this replaced ALL existing Spans routing entries, not just these three."

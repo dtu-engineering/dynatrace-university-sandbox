@@ -1,0 +1,44 @@
+---
+# Installs Claude Code CLI and configures it to route through Amazon Bedrock
+# (this account has no Anthropic API key). Uses the default AWS SDK
+# credential chain -- on an EC2 instance that resolves to the instance role
+# via IMDS automatically, no keys needed here. See bedrock-access-check.yml
+# for the IAM prerequisite this depends on.
+
+- name: Check installed Node.js version
+  ansible.builtin.command: node --version
+  register: node_version_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Node.js {{ ai_tooling_node_version }} LTS (needed by the Claude Code CLI)
+  become: true
+  ansible.builtin.shell: |
+    curl -fsSL https://deb.nodesource.com/setup_{{ ai_tooling_node_version }}.x | bash -
+    apt-get install -y nodejs
+  when: >
+    node_version_check.rc != 0 or
+    not node_version_check.stdout.startswith('v' + ai_tooling_node_version | string)
+
+- name: Install Claude Code CLI
+  become: true
+  ansible.builtin.shell: |
+    npm install -g @anthropic-ai/claude-code
+  args:
+    creates: /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js
+
+- name: Ensure ~/.claude directory exists
+  ansible.builtin.file:
+    path: "/home/{{ instance_user }}/.claude"
+    state: directory
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0700"
+
+- name: Configure Claude Code settings (Bedrock routing + model pins)
+  ansible.builtin.template:
+    src: claude-settings.json.j2
+    dest: "/home/{{ instance_user }}/.claude/settings.json"
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0600"

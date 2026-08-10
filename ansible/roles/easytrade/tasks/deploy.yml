@@ -34,3 +34,17 @@
   retries: 10
   delay: 3
   until: easytrade_deployments.rc == 0
+
+# The chart is re-cloned fresh on every run (force: true above), so any resource
+# tuning has to be reapplied post-install rather than edited into the cloned chart
+# directly, which would just get overwritten. CPU request trimmed from 500m —
+# observed usage was ~20-24m at idle on a t3a.2xlarge capacity sizing pass.
+# Memory left untouched (request already close to observed RSS).
+- name: Rightsize easytrade-db CPU request (t3a.2xlarge capacity pass)
+  ansible.builtin.shell: |
+    kubectl -n "{{ easytrade_namespace }}" set resources statefulset easytrade-db --requests=cpu=100m
+  register: easytrade_db_resize
+  retries: 5
+  delay: 5
+  until: easytrade_db_resize.rc == 0
+  changed_when: "'resource requirements updated' in easytrade_db_resize.stdout"

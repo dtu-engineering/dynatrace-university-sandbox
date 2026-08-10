@@ -1,0 +1,127 @@
+---
+
+- name: Pause for SmartFreight deployment
+  ansible.builtin.pause:
+    seconds: 120
+
+- name: Count all SmartFreight pods
+  ansible.builtin.shell: |
+    kubectl -n "{{ smartfreight_namespace }}" get pods --no-headers | wc -l
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: smartfreight_pod_count
+  changed_when: false
+  retries: 20
+  delay: 10
+  until: smartfreight_pod_count.stdout | int > 0
+
+- name: Wait for all SmartFreight pods to be Running and Ready
+  ansible.builtin.shell: |
+    kubectl -n "{{ smartfreight_namespace }}" get pods -o json \
+    | jq '[.items[]
+           | select(.status.phase=="Running")
+           | select(all(.status.containerStatuses[]; .ready==true))
+          ] | length'
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: smartfreight_ready_count
+  changed_when: false
+  retries: 20
+  delay: 30
+  until: smartfreight_ready_count.stdout | int == (smartfreight_pod_count.stdout | int)
+  failed_when: false
+
+# Doesn't fail the play (the app-availability check below is the real pass/fail gate) - this
+# only captures live diagnostics, while the instance is still up, for whichever pod(s) never
+# reached Running/Ready.
+- name: Capture SmartFreight diagnostics (not all pods reached Running/Ready)
+  when: smartfreight_ready_count.stdout | int != (smartfreight_pod_count.stdout | int)
+  block:
+    - name: "[DEBUG] SmartFreight pod overview"
+      ansible.builtin.shell: kubectl -n "{{ smartfreight_namespace }}" get pods -o wide
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: sf_debug_pods
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show pod overview"
+      ansible.builtin.debug:
+        msg: "{{ sf_debug_pods.stdout_lines }}"
+
+    - name: "[DEBUG] SmartFreight namespace events (most recent last)"
+      ansible.builtin.shell: kubectl -n "{{ smartfreight_namespace }}" get events --sort-by=.lastTimestamp | tail -40
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: sf_debug_events
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show namespace events"
+      ansible.builtin.debug:
+        msg: "{{ sf_debug_events.stdout_lines }}"
+
+    - name: "[DEBUG] Describe all SmartFreight pods"
+      ansible.builtin.shell: kubectl -n "{{ smartfreight_namespace }}" describe pods
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: sf_debug_describe
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show pod descriptions"
+      ansible.builtin.debug:
+        msg: "{{ sf_debug_describe.stdout_lines }}"
+
+    - name: "[DEBUG] Logs from every SmartFreight pod/container"
+      ansible.builtin.shell: |
+        for p in $(kubectl -n "{{ smartfreight_namespace }}" get pods -o name); do
+          echo "== $p =="
+          kubectl -n "{{ smartfreight_namespace }}" logs "$p" --all-containers --tail=50 2>&1 || true
+        done
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: sf_debug_logs
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show pod logs"
+      ansible.builtin.debug:
+        msg: "{{ sf_debug_logs.stdout_lines }}"
+
+    - name: "[DEBUG] Helm release status"
+      ansible.builtin.shell: helm -n "{{ smartfreight_namespace }}" list -a
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: sf_debug_helm
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show helm release status"
+      ansible.builtin.debug:
+        msg: "{{ sf_debug_helm.stdout_lines }}"
+
+- name: Verify SmartFreight Application
+  ansible.builtin.include_role:
+    name: health-check
+    tasks_from: app-availability.yml
+  vars:
+    verify_url: "https://smartfreight.{{ ingress_domain }}"
+
+- name: Pause for SmartFreight to settle
+  ansible.builtin.pause:
+    seconds: 180

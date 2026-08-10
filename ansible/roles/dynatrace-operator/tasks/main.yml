@@ -113,22 +113,132 @@
   delay: 30
   until: activegate_count.stdout | int > 0
 
-- name: Ensure all OneAgent pods are Running and Ready
-  shell: |
-    kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent -o json \
-    | jq '[.items[] | select(.status.phase=="Running") 
-           | select(all(.status.containerStatuses[]; .ready==true))] | length'
-  register: oneagent_ready
-  retries: 15
-  delay: 30
-  until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
+- name: Wait for OneAgent and ActiveGate pods to be Running and Ready (captures live diagnostics on failure)
+  block:
+    - name: Ensure all OneAgent pods are Running and Ready
+      shell: |
+        kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent -o json \
+        | jq '[.items[] | select(.status.phase=="Running")
+               | select(all(.status.containerStatuses[]; .ready==true))] | length'
+      register: oneagent_ready
+      retries: 15
+      delay: 40
+      until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
 
-- name: Ensure all ActiveGate pods are Running and Ready
-  shell: |
-    kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate -o json \
-    | jq '[.items[] | select(.status.phase=="Running") 
-           | select(all(.status.containerStatuses[]; .ready==true))] | length'
-  register: activegate_ready
-  retries: 15
-  delay: 30
-  until: activegate_ready.stdout | int == (activegate_count.stdout | int)
+    - name: Ensure all ActiveGate pods are Running and Ready
+      shell: |
+        kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate -o json \
+        | jq '[.items[] | select(.status.phase=="Running")
+               | select(all(.status.containerStatuses[]; .ready==true))] | length'
+      register: activegate_ready
+      retries: 15
+      delay: 30
+      until: activegate_ready.stdout | int == (activegate_count.stdout | int)
+
+  rescue:
+    # Runs immediately while the instance is still up, so the cause isn't lost if this
+    # environment gets torn down after the playbook fails. Everything here is read-only
+    # (failed_when: false) so a diagnostic command itself can't mask or replace the real error.
+
+    - name: "[DEBUG] DynaKube status conditions"
+      shell: kubectl -n dynatrace get dynakube dynakube -o yaml
+      register: dt_debug_dynakube
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show DynaKube status"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_dynakube.stdout_lines }}"
+
+    - name: "[DEBUG] Pod overview in dynatrace namespace"
+      shell: kubectl -n dynatrace get pods -o wide
+      register: dt_debug_pods
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show pod overview"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_pods.stdout_lines }}"
+
+    - name: "[DEBUG] Namespace events (most recent last)"
+      shell: kubectl -n dynatrace get events --sort-by=.lastTimestamp | tail -40
+      register: dt_debug_events
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show namespace events"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_events.stdout_lines }}"
+
+    - name: "[DEBUG] Describe OneAgent pod(s)"
+      shell: kubectl -n dynatrace describe pods -l app.kubernetes.io/name=oneagent
+      register: dt_debug_oneagent_describe
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show OneAgent pod description"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_oneagent_describe.stdout_lines }}"
+
+    - name: "[DEBUG] OneAgent container logs (current + previous)"
+      shell: |
+        kubectl -n dynatrace logs -l app.kubernetes.io/name=oneagent --all-containers --tail=200
+        echo "--- previous ---"
+        kubectl -n dynatrace logs -l app.kubernetes.io/name=oneagent --all-containers --previous --tail=200 2>/dev/null || true
+      register: dt_debug_oneagent_logs
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show OneAgent logs"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_oneagent_logs.stdout_lines }}"
+
+    - name: "[DEBUG] Describe ActiveGate pod(s)"
+      shell: kubectl -n dynatrace describe pods -l app.kubernetes.io/name=activegate
+      register: dt_debug_activegate_describe
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show ActiveGate pod description"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_activegate_describe.stdout_lines }}"
+
+    - name: "[DEBUG] ActiveGate container logs"
+      shell: kubectl -n dynatrace logs -l app.kubernetes.io/name=activegate --all-containers --tail=200
+      register: dt_debug_activegate_logs
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show ActiveGate logs"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_activegate_logs.stdout_lines }}"
+
+    - name: "[DEBUG] CSI driver pod status + logs"
+      shell: |
+        kubectl -n dynatrace get pods -l app.kubernetes.io/app=dynatrace-oneagent-csi-driver -o wide
+        echo "--- logs ---"
+        kubectl -n dynatrace logs -l app.kubernetes.io/app=dynatrace-oneagent-csi-driver --all-containers --tail=100
+      register: dt_debug_csi
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show CSI driver status/logs"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_csi.stdout_lines }}"
+
+    - name: "[DEBUG] dynatrace-operator logs"
+      shell: kubectl -n dynatrace logs deploy/dynatrace-operator --tail=200
+      register: dt_debug_operator_logs
+      changed_when: false
+      failed_when: false
+
+    - name: "[DEBUG] Show dynatrace-operator logs"
+      ansible.builtin.debug:
+        msg: "{{ dt_debug_operator_logs.stdout_lines }}"
+
+    - name: Fail after capturing diagnostics (OneAgent/ActiveGate did not reach Running and Ready)
+      ansible.builtin.fail:
+        msg: >-
+          Dynatrace operator install did not reach Ready state (OneAgent and/or ActiveGate) -
+          see the [DEBUG] task output above (DynaKube status, pod events, describes, and logs)
+          for the cause.

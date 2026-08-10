@@ -1,0 +1,74 @@
+---
+# Downloads and extracts the versioned SmartFreight release artifact from
+# S3 (smartfreight_s3_bucket / smartfreight_s3_object_key).
+
+- name: Check whether AWS CLI is already installed
+  ansible.builtin.command: aws --version
+  register: smartfreight_aws_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Download AWS CLI v2 installer
+  ansible.builtin.get_url:
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+    dest: /tmp/awscliv2.zip
+    mode: "0644"
+  when: smartfreight_aws_cli_check.rc != 0
+
+- name: Unpack AWS CLI v2 installer
+  ansible.builtin.unarchive:
+    src: /tmp/awscliv2.zip
+    dest: /tmp
+    remote_src: true
+  when: smartfreight_aws_cli_check.rc != 0
+
+- name: Install AWS CLI v2
+  ansible.builtin.command: /tmp/aws/install
+  become: true
+  when: smartfreight_aws_cli_check.rc != 0
+
+- name: Check whether this release has already been fetched
+  ansible.builtin.stat:
+    path: "{{ smartfreight_release_marker }}"
+  register: smartfreight_release_marker_stat
+
+- name: Reset SmartFreight release directory before fetching a new version
+  ansible.builtin.file:
+    path: "{{ smartfreight_release_dir }}"
+    state: "{{ item }}"
+    mode: "0755"
+  loop:
+    - absent
+    - directory
+  when: not smartfreight_release_marker_stat.stat.exists
+
+- name: Download SmartFreight release archive from S3
+  ansible.builtin.command:
+    cmd: >
+      aws s3 cp
+      s3://{{ smartfreight_s3_bucket }}/{{ smartfreight_s3_object_key }}
+      {{ smartfreight_release_archive }}
+      --region {{ smartfreight_aws_region }}
+  when: not smartfreight_release_marker_stat.stat.exists
+  register: smartfreight_s3_download
+
+- name: Extract SmartFreight release archive
+  ansible.builtin.unarchive:
+    src: "{{ smartfreight_release_archive }}"
+    dest: "{{ role_path }}/files"
+    remote_src: true
+  when: not smartfreight_release_marker_stat.stat.exists
+  register: smartfreight_extract
+
+- name: Drop version marker so re-runs skip the download/extract
+  ansible.builtin.file:
+    path: "{{ smartfreight_release_marker }}"
+    state: touch
+    mode: "0644"
+  when: not smartfreight_release_marker_stat.stat.exists
+
+- name: Clean up downloaded archive
+  ansible.builtin.file:
+    path: "{{ smartfreight_release_archive }}"
+    state: absent
+  when: not smartfreight_release_marker_stat.stat.exists

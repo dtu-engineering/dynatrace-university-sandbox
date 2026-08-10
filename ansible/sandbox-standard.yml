@@ -48,6 +48,10 @@
           include_role:
             name: vscode
 
+        - name: Deploy Smartfreight
+          include_role:
+            name: smartfreight
+
         - name: Deploy EasyTrade
           include_role:
             name: easytrade

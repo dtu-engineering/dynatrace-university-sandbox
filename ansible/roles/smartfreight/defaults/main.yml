@@ -1,0 +1,31 @@
+---
+# ── Release artifact (S3) ──────────────────────────────────────────────────────────────────
+smartfreight_namespace: "smartfreight"
+smartfreight_s3_bucket: "dtulabs-university-sandbox"
+smartfreight_s3_object_key: "smartfreight/smartfreight_2c376d5.zip"
+
+smartfreight_release_dir: "{{ role_path }}/files/smartfreight"
+smartfreight_release_archive: "/tmp/{{ smartfreight_s3_object_key | basename }}"
+smartfreight_release_marker: "{{ smartfreight_release_dir }}/.release-{{ smartfreight_s3_object_key | basename }}"
+smartfreight_helm_charts_dir: "{{ smartfreight_release_dir }}/deploy/helm/charts"
+
+# ── AWS / ECR ──────────────────────────────────────────────────────────────────
+smartfreight_aws_region: "us-east-1"
+smartfreight_ecr_repo_prefix: "dtu-smartfreight-labs-prod"
+smartfreight_image_tag: "latest"
+smartfreight_ecr_registry: "" # blank to resolve dynamically via `aws sts get-caller-identity`
+
+# ── Credentials ──────────────────────────────────────────────────────────────────
+smartfreight_postgres_password: "smartfreight"
+smartfreight_admin_username: "admin"
+smartfreight_admin_password: "{{ instance_password }}"
+
+# ── Bedrock model IDs ────────────────────────────────────────────────────────
+# These models are overridden by the extra_ansible_vars passed from Terraform with a specific tagged 
+# inference profile to ensure bedrock costs are associated with the applicable `aether:environment:id` and `aether:environment:costcenter` tags.
+smartfreight_bedrock_supervisor_model: "us.amazon.nova-pro-v1:0"
+smartfreight_bedrock_pricing_model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+smartfreight_bedrock_guardrail_judge_model: "us.amazon.nova-micro-v1:0"
+smartfreight_bedrock_weather_model: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+smartfreight_bedrock_route_planner_model: "us.amazon.nova-pro-v1:0"
+smartfreight_bedrock_shipment_model: "us.meta.llama3-3-70b-instruct-v1:0"

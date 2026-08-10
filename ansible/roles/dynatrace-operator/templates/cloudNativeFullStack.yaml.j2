@@ -210,11 +210,14 @@ spec:
     #   valueFrom: myCustomPropertiesSecret
 
     # Optional: Resource settings for ActiveGate container.
+    # CPU request trimmed from 500m — observed usage ~52-72m at idle. Memory request
+    # trimmed from 1.5Gi to 1Gi — observed RSS ~721Mi, still leaves buffer under the
+    # 1.5Gi limit. Limits unchanged. t3a.2xlarge capacity sizing pass.
     #
     resources:
       requests:
-        cpu: 500m
-        memory: 1.5Gi
+        cpu: 150m
+        memory: 1Gi
       limits:
         cpu: 1000m
         memory: 1.5Gi
