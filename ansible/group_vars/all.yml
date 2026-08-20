@@ -1,0 +1,19 @@
+---
+# Shared defaults for every role in this playbook set.
+#
+# group_vars/all takes precedence over role defaults, so individual roles keep
+# their own fallback values and remain runnable standalone, while a single
+# change here retunes retry behaviour across the whole sandbox build.
+
+# ── Retry policy for tasks that touch the network ──────────────────────────
+# Most provisioning failures in this environment are transient: apt mirror
+# 503s, GitHub/registry blips, chart repo timeouts. Retry anything that leaves
+# the instance. See docs/sandbox-architecture-options.md section 2.3 for the
+# full inventory of boot-time external dependencies.
+network_task_retries: 5
+network_task_delay: 10
+
+# ── Apt hardening ──────────────────────────────────────────────────────────
+apt_ubuntu_archive_url: "http://archive.ubuntu.com/ubuntu"
+apt_acquire_retries: 5
+apt_acquire_timeout: 30

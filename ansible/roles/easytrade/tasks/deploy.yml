@@ -8,6 +8,9 @@
     depth: 1
     force: true
   register: git_clone
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: git_clone is succeeded
 
 - name: Ensure easytrade namespace exists
   ansible.builtin.shell: |

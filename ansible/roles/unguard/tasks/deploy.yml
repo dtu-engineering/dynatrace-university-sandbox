@@ -8,6 +8,9 @@
     depth: 1
     force: true
   register: unguard_git_clone
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: unguard_git_clone is succeeded
 
 - name: Get Unguard git remote origin
   ansible.builtin.shell: |

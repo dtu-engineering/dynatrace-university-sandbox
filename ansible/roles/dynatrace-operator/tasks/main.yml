@@ -53,6 +53,10 @@
     url: "https://github.com/Dynatrace/dynatrace-operator/releases/download/{{ dt_operator_release }}/kubernetes-csi.yaml"
     dest: "{{ role_path }}/files/kubernetes-csi.yaml"
     mode: '0664'
+  register: dt_operator_csi_download
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: dt_operator_csi_download is succeeded
 
 - name: Apply Dynatrace Operator CSI manifest
   shell: |

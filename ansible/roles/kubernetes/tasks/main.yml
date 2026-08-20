@@ -7,7 +7,17 @@
 - name: Install k3s
   become: true
   shell:
-    cmd: 'curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - --disable servicelb --write-kubeconfig-mode=644 --egress-selector-mode=disabled'
+    cmd: >-
+      set -o pipefail &&
+      curl -sfL --retry {{ network_task_retries }} --retry-delay {{ network_task_delay }} --retry-connrefused https://get.k3s.io |
+      INSTALL_K3S_VERSION={{ k3s_version }} sh -s -
+      --disable servicelb --write-kubeconfig-mode=644 --egress-selector-mode=disabled
+    executable: /bin/bash
+  register: k3s_install
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: k3s_install is succeeded
+  changed_when: true
 
 - name: Add KUBECONFIG to user .bashrc
   lineinfile:
@@ -51,21 +61,62 @@
 # Docker Tasks #
 ################
 
-#FIXED
-- name: Override EC2 apt mirror to official Ubuntu archive
-  become: true
-  ansible.builtin.shell: |
-    sed -i 's|http://.*\.ec2\.archive\.ubuntu\.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list
-    sed -i 's|http://.*\.ec2\.archive\.ubuntu\.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true
-  args:
-    executable: /bin/bash
+##############
+# Apt Config #
+##############
 
-#FIXED
-- name: Clean apt cache to force fresh fetch from new mirror
+# Ubuntu 24.04 (noble) cloud images declare their repositories in deb822
+# format at /etc/apt/sources.list.d/ubuntu.sources; /etc/apt/sources.list is
+# only a stub comment. 22.04 and earlier use /etc/apt/sources.list. Enumerate
+# whatever is actually present rather than assuming either layout - the
+# previous `sed` here only covered sources.list and *.list, so on 24.04 it
+# matched nothing, silently succeeded, and apt kept using the EC2 regional
+# mirror (the source of the intermittent 503s on package fetches).
+- name: Enumerate apt source files
+  become: true
+  ansible.builtin.find:
+    paths:
+      - /etc/apt
+      - /etc/apt/sources.list.d
+    patterns:
+      - sources.list
+      - "*.sources"
+      - "*.list"
+    file_type: file
+  register: apt_source_files
+
+- name: Point apt at the official Ubuntu archive instead of the EC2 regional mirror
+  become: true
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: 'https?://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu'
+    replace: "{{ apt_ubuntu_archive_url }}"
+  loop: "{{ apt_source_files.files | map(attribute='path') | list }}"
+  register: apt_mirror_override
+
+- name: Clean apt cache so the new mirror is used
   become: true
   ansible.builtin.shell: apt-get clean && rm -rf /var/lib/apt/lists/*
   args:
     executable: /bin/bash
+  when: apt_mirror_override is changed
+  changed_when: true
+
+# Even on the official archive, individual mirrors return transient 503s and
+# stall. Retrying inside apt itself is cheaper than retrying the whole task.
+- name: Make apt resilient to transient mirror failures
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/80-aether-retries
+    mode: "0644"
+    content: |
+      Acquire::Retries "{{ apt_acquire_retries }}";
+      Acquire::http::Timeout "{{ apt_acquire_timeout }}";
+      Acquire::https::Timeout "{{ apt_acquire_timeout }}";
+
+################
+# Docker Tasks #
+################
 
 - name: Ensure Docker prerequisites
   become: true
@@ -76,6 +127,11 @@
       - curl
       - gnupg
       - software-properties-common
+    update_cache: yes
+  register: docker_prereqs
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: docker_prereqs is succeeded
 
 - name: Ensure keyrings directory exists
   become: true
@@ -90,6 +146,10 @@
     url: https://download.docker.com/linux/ubuntu/gpg
     dest: /etc/apt/keyrings/docker.asc
     mode: "0644"
+  register: docker_gpg_key
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: docker_gpg_key is succeeded
 
 - name: Detect architecture
   become: true
@@ -111,6 +171,10 @@
   become: true
   ansible.builtin.apt:
     update_cache: yes
+  register: docker_apt_cache
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: docker_apt_cache is succeeded
 
 - name: Install Docker packages
   become: true
@@ -122,6 +186,11 @@
       - docker-buildx-plugin
       - docker-compose-plugin
     state: present
+    update_cache: yes
+  register: docker_packages
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: docker_packages is succeeded
 
 - name: Enable Docker service
   become: true
@@ -133,21 +202,33 @@
 #   Helm Tasks  #
 #################
 
+# NOTE: helm_install_script_ref defaults to `main`, so this fetches whatever
+# the Helm project has on its default branch today. Pin it to a tag (and set
+# helm_version) once a suitable Helm 4 tag is confirmed - see
+# docs/sandbox-architecture-options.md section 3.7.
 - name: Download Helm install script
-  ansible.builtin.shell: |
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
-  args:
-    creates: get_helm.sh
-
-- name: Make Helm install script executable
-  ansible.builtin.file:
-    path: get_helm.sh
+  become: true
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/helm/helm/{{ helm_install_script_ref }}/scripts/{{ helm_install_script }}"
+    dest: "{{ helm_install_script_path }}"
     mode: "0700"
+    force: false
+  register: helm_script_download
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: helm_script_download is succeeded
 
 - name: Install Helm
-  ansible.builtin.shell: ./get_helm.sh
+  become: true
+  ansible.builtin.command: "{{ helm_install_script_path }}"
   args:
     creates: /usr/local/bin/helm
+  environment:
+    DESIRED_VERSION: "{{ helm_version | default('', true) }}"
+  register: helm_install
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: helm_install is succeeded
 
 #################
 # Restart Tasks #

@@ -11,12 +11,20 @@
   ansible.builtin.get_url:
     url: "https://github.com/coder/code-server/releases/download/v{{vscode_version}}/code-server_{{vscode_version}}_amd64.deb"
     dest: /tmp/code-server_{{vscode_version}}_amd64.deb
+  register: code_server_deb
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: code_server_deb is succeeded
 
 - name: Install code-server deb
   become: true
   ansible.builtin.apt:
     deb: "/tmp/code-server_{{ vscode_version }}_amd64.deb"
     state: present
+  register: code_server_install
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: code_server_install is succeeded
 
 - name: Enable and start code-server service
   become: true
