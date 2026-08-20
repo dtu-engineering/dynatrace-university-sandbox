@@ -54,6 +54,23 @@
           vars:
             sandbox_scenario: "core"
 
+        # dynatrace_operator_install_failed is set by roles/dynatrace-operator's
+        # rescue if the Operator didn't come up - that role treats itself as
+        # non-fatal so everything above still runs, but the run as a whole
+        # should be reported as degraded rather than a clean SUCCESS.
+        - name: Determine overall completion status
+          set_fact:
+            sandbox_degraded_components: "{{ (dynatrace_operator_install_failed | default(false)) | ternary(['dynatrace-operator'], []) }}"
+
+        - name: Print sandbox completion summary
+          debug:
+            msg: >-
+              {{ (sandbox_degraded_components | length == 0) | ternary(
+                'Sandbox build completed successfully - all components healthy.',
+                'Sandbox build completed with DEGRADED components: ' + (sandbox_degraded_components | join(', ')) +
+                '. Everything else deployed normally - see the [DEBUG]/[DEGRADED] output above for the cause.'
+              ) }}
+
         - name: Send SUCCESS business event
           include_role:
             name: business-events
@@ -61,6 +78,19 @@
           vars:
             bizevent_type: "aether-instance-sandbox-complete"
             bizevent_category: "INFO"
+          when: sandbox_degraded_components | length == 0
+
+        - name: Send DEGRADED business event
+          include_role:
+            name: business-events
+            tasks_from: bizevent-send.yml
+          vars:
+            bizevent_type: "aether-instance-sandbox-degraded"
+            bizevent_category: "WARNING"
+            bizevent_extra:
+              degraded.components: "{{ sandbox_degraded_components | join(',') }}"
+              degraded.reason: "{{ dynatrace_operator_failure_reason | default('') }}"
+          when: sandbox_degraded_components | length > 0
 
       rescue:
         - name: Send FAILURE business event

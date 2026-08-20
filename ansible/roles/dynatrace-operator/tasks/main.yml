@@ -1,254 +1,310 @@
 ---
-# https://docs.dynatrace.com/docs/ingest-from/setup-on-k8s/deployment/full-stack-observability#manifest 
-
-- name: Create Dynatrace Operator Token
-  uri:
-    url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
-    method: POST
-    status_code: [200, 201]
-    body:
-      name: "{{ dt_operator_dt_access_token_name }}"
-      scopes:
-        - DataExport
-        - InstallerDownload
-        - activeGateTokenManagement.create
-        - entities.read
-        - settings.read
-        - settings.write
-    body_format: json
-    headers:
-      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
-  register: dynatrace_operator_token_result
-
-- name: Create Dynatrace Data Ingest Token
-  uri:
-    url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
-    method: POST
-    status_code: [200, 201]
-    body:
-      name: "{{ dt_operator_dt_data_ingest_token_name }}"
-      scopes:
-        - metrics.ingest
-        - logs.ingest
-        - openTelemetryTrace.ingest
-    body_format: json
-    headers:
-      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
-  register: dynatrace_data_ingest_token_result
-
-- name: Create Dynatrace namespace
-  command: |
-    kubectl create namespace {{ dt_operator_namespace }}
-  register: dt_ns_result
-  failed_when: dt_ns_result.rc != 0 and "AlreadyExists" not in dt_ns_result.stderr
-
-- name: Ensure operator files directory exists
-  ansible.builtin.file:
-    path: "{{ role_path }}/files"
-    state: directory
-    mode: "0755"
-
-- name: Download Dynatrace Operator with CSI manifest
-  ansible.builtin.get_url:
-    url: "https://github.com/Dynatrace/dynatrace-operator/releases/download/{{ dt_operator_release }}/kubernetes-csi.yaml"
-    dest: "{{ role_path }}/files/kubernetes-csi.yaml"
-    mode: '0664'
-  register: dt_operator_csi_download
-  retries: "{{ network_task_retries }}"
-  delay: "{{ network_task_delay }}"
-  until: dt_operator_csi_download is succeeded
-
-- name: Apply Dynatrace Operator CSI manifest
-  shell: |
-    kubectl apply -f "{{ role_path }}/files/kubernetes-csi.yaml"
-  register: dynatrace_operator_csi
-  retries: 20
-  delay: 5
-  until: dynatrace_operator_csi.rc == 0
-
-- name: Create Dynatrace dynakube secret
-  shell: >
-    kubectl -n dynatrace create secret generic dynakube
-    --from-literal="apiToken={{ dynatrace_operator_token_result.json.token }}"
-    --from-literal="dataIngestToken={{ dynatrace_data_ingest_token_result.json.token }}"
-  # The tokens are embedded directly in this command. no_log makes Ansible
-  # redact the result (including `cmd`) before any callback plugin - the
-  # OpenTelemetry one included - ever sees it. failed_when below still works:
-  # Ansible evaluates it against the real result object regardless of no_log,
-  # it only suppresses what gets displayed/logged/exported.
-  no_log: true
-  register: dynakube_secret
-  failed_when: >
-    dynakube_secret.rc != 0 and
-    "already exists" not in dynakube_secret.stderr
-  retries: 15
-  delay: 10
-  changed_when: "'already exists' not in dynakube_secret.stderr"
-
-- name: Ensure operator files directory exists
-  ansible.builtin.file:
-    path: "{{ role_path }}/files/operator"
-    state: directory
-    mode: "0755"
-
-- name: Template cloudNativeFullStack Dynakube manifest
-  ansible.builtin.template:
-    src: "cloudNativeFullStack.yaml.j2"
-    dest: "{{ role_path }}/files/cloudNativeFullStack.yaml"
-    owner: "{{ instance_user }}"
-    group: "{{ instance_user }}"
-    mode: "0644"
-
-- name: Apply cloudNativeFullStack manifest
-  shell: |
-    kubectl apply -f "{{ role_path }}/files/cloudNativeFullStack.yaml"
-  register: dt_operator_cloud_native_full_stack_result
-  retries: 15
-  delay: 5
-  until: dt_operator_cloud_native_full_stack_result.rc == 0
-
-- name: Wait minimum 1 OneAgent pod to be created
-  shell: |
-    kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent --no-headers | wc -l
-  register: oneagent_count
-  retries: 20
-  delay: 20
-  until: oneagent_count.stdout | int > 0
-
-- name: Wait for at least one ActiveGate pod to be created
-  shell: |
-    kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate --no-headers | wc -l
-  register: activegate_count
-  retries: 15
-  delay: 30
-  until: activegate_count.stdout | int > 0
-
-- name: Wait for OneAgent and ActiveGate pods to be Running and Ready (captures live diagnostics on failure)
+# https://docs.dynatrace.com/docs/ingest-from/setup-on-k8s/deployment/full-stack-observability#manifest
+#
+# The Dynatrace Operator is treated as best-effort, not critical: k3s and the
+# demo apps don't depend on it, so a failure anywhere in this role (token
+# creation, manifest apply, or the pods never reaching Ready) is caught by the
+# rescue below, diagnosed, and recorded as a degraded fact rather than failing
+# the play. kubernetes-monitoring, vscode, smartfreight, easytrade,
+# opentelemetry-demo, unguard, and display-links all run regardless. The
+# overall run is then reported as DEGRADED (not SUCCESS) - see
+# roles/business-events and sandbox-standard.yml/sandbox-core.yml.
+- name: Deploy and verify the Dynatrace Operator (non-fatal on failure)
   block:
-    - name: Ensure all OneAgent pods are Running and Ready
-      shell: |
-        kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent -o json \
-        | jq '[.items[] | select(.status.phase=="Running")
-               | select(all(.status.containerStatuses[]; .ready==true))] | length'
-      register: oneagent_ready
-      retries: 15
-      delay: 40
-      until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
+    - name: Create Dynatrace Operator Token
+      uri:
+        url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
+        method: POST
+        status_code: [200, 201]
+        body:
+          name: "{{ dt_operator_dt_access_token_name }}"
+          scopes:
+            - DataExport
+            - InstallerDownload
+            - activeGateTokenManagement.create
+            - entities.read
+            - settings.read
+            - settings.write
+        body_format: json
+        headers:
+          Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+      register: dynatrace_operator_token_result
+      retries: "{{ network_task_retries }}"
+      delay: "{{ network_task_delay }}"
+      until: dynatrace_operator_token_result is succeeded
 
-    - name: Ensure all ActiveGate pods are Running and Ready
+    - name: Create Dynatrace Data Ingest Token
+      uri:
+        url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
+        method: POST
+        status_code: [200, 201]
+        body:
+          name: "{{ dt_operator_dt_data_ingest_token_name }}"
+          scopes:
+            - metrics.ingest
+            - logs.ingest
+            - openTelemetryTrace.ingest
+        body_format: json
+        headers:
+          Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+      register: dynatrace_data_ingest_token_result
+      retries: "{{ network_task_retries }}"
+      delay: "{{ network_task_delay }}"
+      until: dynatrace_data_ingest_token_result is succeeded
+
+    - name: Create Dynatrace namespace
+      command: |
+        kubectl create namespace {{ dt_operator_namespace }}
+      register: dt_ns_result
+      failed_when: dt_ns_result.rc != 0 and "AlreadyExists" not in dt_ns_result.stderr
+
+    - name: Ensure operator files directory exists
+      ansible.builtin.file:
+        path: "{{ role_path }}/files"
+        state: directory
+        mode: "0755"
+
+    - name: Download Dynatrace Operator with CSI manifest
+      ansible.builtin.get_url:
+        url: "https://github.com/Dynatrace/dynatrace-operator/releases/download/{{ dt_operator_release }}/kubernetes-csi.yaml"
+        dest: "{{ role_path }}/files/kubernetes-csi.yaml"
+        mode: '0664'
+      register: dt_operator_csi_download
+      retries: "{{ network_task_retries }}"
+      delay: "{{ network_task_delay }}"
+      until: dt_operator_csi_download is succeeded
+
+    - name: Apply Dynatrace Operator CSI manifest
       shell: |
-        kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate -o json \
-        | jq '[.items[] | select(.status.phase=="Running")
-               | select(all(.status.containerStatuses[]; .ready==true))] | length'
-      register: activegate_ready
+        kubectl apply -f "{{ role_path }}/files/kubernetes-csi.yaml"
+      register: dynatrace_operator_csi
+      retries: 20
+      delay: 5
+      until: dynatrace_operator_csi.rc == 0
+
+    - name: Create Dynatrace dynakube secret
+      shell: >
+        kubectl -n dynatrace create secret generic dynakube
+        --from-literal="apiToken={{ dynatrace_operator_token_result.json.token }}"
+        --from-literal="dataIngestToken={{ dynatrace_data_ingest_token_result.json.token }}"
+      # The tokens are embedded directly in this command. no_log makes Ansible
+      # redact the result (including `cmd`) before any callback plugin - the
+      # OpenTelemetry one included - ever sees it. failed_when below still works:
+      # Ansible evaluates it against the real result object regardless of no_log,
+      # it only suppresses what gets displayed/logged/exported.
+      no_log: true
+      register: dynakube_secret
+      failed_when: >
+        dynakube_secret.rc != 0 and
+        "already exists" not in dynakube_secret.stderr
+      retries: 15
+      delay: 10
+      changed_when: "'already exists' not in dynakube_secret.stderr"
+
+    - name: Ensure operator files directory exists
+      ansible.builtin.file:
+        path: "{{ role_path }}/files/operator"
+        state: directory
+        mode: "0755"
+
+    - name: Template cloudNativeFullStack Dynakube manifest
+      ansible.builtin.template:
+        src: "cloudNativeFullStack.yaml.j2"
+        dest: "{{ role_path }}/files/cloudNativeFullStack.yaml"
+        owner: "{{ instance_user }}"
+        group: "{{ instance_user }}"
+        mode: "0644"
+
+    - name: Apply cloudNativeFullStack manifest
+      shell: |
+        kubectl apply -f "{{ role_path }}/files/cloudNativeFullStack.yaml"
+      register: dt_operator_cloud_native_full_stack_result
+      retries: 15
+      delay: 5
+      until: dt_operator_cloud_native_full_stack_result.rc == 0
+
+    - name: Wait minimum 1 OneAgent pod to be created
+      shell: |
+        kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent --no-headers | wc -l
+      register: oneagent_count
+      retries: 20
+      delay: 20
+      until: oneagent_count.stdout | int > 0
+
+    - name: Wait for at least one ActiveGate pod to be created
+      shell: |
+        kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate --no-headers | wc -l
+      register: activegate_count
       retries: 15
       delay: 30
-      until: activegate_ready.stdout | int == (activegate_count.stdout | int)
+      until: activegate_count.stdout | int > 0
+
+    - name: Wait for OneAgent and ActiveGate pods to be Running and Ready (captures live diagnostics on failure)
+      block:
+        - name: Ensure all OneAgent pods are Running and Ready
+          shell: |
+            kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent -o json \
+            | jq '[.items[] | select(.status.phase=="Running")
+                   | select(all(.status.containerStatuses[]; .ready==true))] | length'
+          register: oneagent_ready
+          retries: 15
+          delay: 40
+          until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
+
+        - name: Ensure all ActiveGate pods are Running and Ready
+          shell: |
+            kubectl -n dynatrace get pods -l app.kubernetes.io/name=activegate -o json \
+            | jq '[.items[] | select(.status.phase=="Running")
+                   | select(all(.status.containerStatuses[]; .ready==true))] | length'
+          register: activegate_ready
+          retries: 15
+          delay: 30
+          until: activegate_ready.stdout | int == (activegate_count.stdout | int)
+
+      rescue:
+        # Runs immediately while the instance is still up, so the cause isn't lost if this
+        # environment gets torn down after the playbook fails. Everything here is read-only
+        # (failed_when: false) so a diagnostic command itself can't mask or replace the real error.
+
+        - name: "[DEBUG] DynaKube status conditions"
+          shell: kubectl -n dynatrace get dynakube dynakube -o yaml
+          register: dt_debug_dynakube
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show DynaKube status"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_dynakube.stdout_lines }}"
+
+        - name: "[DEBUG] Pod overview in dynatrace namespace"
+          shell: kubectl -n dynatrace get pods -o wide
+          register: dt_debug_pods
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show pod overview"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_pods.stdout_lines }}"
+
+        - name: "[DEBUG] Namespace events (most recent last)"
+          shell: kubectl -n dynatrace get events --sort-by=.lastTimestamp | tail -40
+          register: dt_debug_events
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show namespace events"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_events.stdout_lines }}"
+
+        - name: "[DEBUG] Describe OneAgent pod(s)"
+          shell: kubectl -n dynatrace describe pods -l app.kubernetes.io/name=oneagent
+          register: dt_debug_oneagent_describe
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show OneAgent pod description"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_oneagent_describe.stdout_lines }}"
+
+        - name: "[DEBUG] OneAgent container logs (current + previous)"
+          shell: |
+            kubectl -n dynatrace logs -l app.kubernetes.io/name=oneagent --all-containers --tail=200
+            echo "--- previous ---"
+            kubectl -n dynatrace logs -l app.kubernetes.io/name=oneagent --all-containers --previous --tail=200 2>/dev/null || true
+          register: dt_debug_oneagent_logs
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show OneAgent logs"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_oneagent_logs.stdout_lines }}"
+
+        - name: "[DEBUG] Describe ActiveGate pod(s)"
+          shell: kubectl -n dynatrace describe pods -l app.kubernetes.io/name=activegate
+          register: dt_debug_activegate_describe
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show ActiveGate pod description"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_activegate_describe.stdout_lines }}"
+
+        - name: "[DEBUG] ActiveGate container logs"
+          shell: kubectl -n dynatrace logs -l app.kubernetes.io/name=activegate --all-containers --tail=200
+          register: dt_debug_activegate_logs
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show ActiveGate logs"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_activegate_logs.stdout_lines }}"
+
+        - name: "[DEBUG] CSI driver pod status + logs"
+          shell: |
+            kubectl -n dynatrace get pods -l app.kubernetes.io/app=dynatrace-oneagent-csi-driver -o wide
+            echo "--- logs ---"
+            kubectl -n dynatrace logs -l app.kubernetes.io/app=dynatrace-oneagent-csi-driver --all-containers --tail=100
+          register: dt_debug_csi
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show CSI driver status/logs"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_csi.stdout_lines }}"
+
+        - name: "[DEBUG] dynatrace-operator logs"
+          shell: kubectl -n dynatrace logs deploy/dynatrace-operator --tail=200
+          register: dt_debug_operator_logs
+          changed_when: false
+          failed_when: false
+
+        - name: "[DEBUG] Show dynatrace-operator logs"
+          ansible.builtin.debug:
+            msg: "{{ dt_debug_operator_logs.stdout_lines }}"
+
+        - name: Fail after capturing diagnostics (OneAgent/ActiveGate did not reach Running and Ready)
+          ansible.builtin.fail:
+            msg: >-
+              Dynatrace operator install did not reach Ready state (OneAgent and/or ActiveGate) -
+              see the [DEBUG] task output above (DynaKube status, pod events, describes, and logs)
+              for the cause.
 
   rescue:
-    # Runs immediately while the instance is still up, so the cause isn't lost if this
-    # environment gets torn down after the playbook fails. Everything here is read-only
-    # (failed_when: false) so a diagnostic command itself can't mask or replace the real error.
-
-    - name: "[DEBUG] DynaKube status conditions"
-      shell: kubectl -n dynatrace get dynakube dynakube -o yaml
-      register: dt_debug_dynakube
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show DynaKube status"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_dynakube.stdout_lines }}"
-
-    - name: "[DEBUG] Pod overview in dynatrace namespace"
-      shell: kubectl -n dynatrace get pods -o wide
-      register: dt_debug_pods
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show pod overview"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_pods.stdout_lines }}"
-
-    - name: "[DEBUG] Namespace events (most recent last)"
-      shell: kubectl -n dynatrace get events --sort-by=.lastTimestamp | tail -40
-      register: dt_debug_events
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show namespace events"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_events.stdout_lines }}"
-
-    - name: "[DEBUG] Describe OneAgent pod(s)"
-      shell: kubectl -n dynatrace describe pods -l app.kubernetes.io/name=oneagent
-      register: dt_debug_oneagent_describe
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show OneAgent pod description"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_oneagent_describe.stdout_lines }}"
-
-    - name: "[DEBUG] OneAgent container logs (current + previous)"
+    # Catches a failure from ANY task above - not just the pod-readiness wait
+    # (which has its own detailed diagnostics and re-raises into this rescue),
+    # but also token creation, namespace/CSI/secret/manifest apply, or the
+    # pod-count waits. If the pod-readiness rescue already ran, these commands
+    # are redundant but harmless (all read-only, failed_when: false); if an
+    # earlier task failed instead, this is the only diagnostic capture that runs.
+    - name: "[DEBUG] Dynatrace namespace snapshot at time of failure"
       shell: |
-        kubectl -n dynatrace logs -l app.kubernetes.io/name=oneagent --all-containers --tail=200
-        echo "--- previous ---"
-        kubectl -n dynatrace logs -l app.kubernetes.io/name=oneagent --all-containers --previous --tail=200 2>/dev/null || true
-      register: dt_debug_oneagent_logs
+        echo "--- pods ---"
+        kubectl -n dynatrace get pods -o wide 2>&1 || true
+        echo "--- dynakube ---"
+        kubectl -n dynatrace get dynakube -o wide 2>&1 || true
+        echo "--- recent events ---"
+        kubectl -n dynatrace get events --sort-by=.lastTimestamp 2>&1 | tail -30 || true
+      register: dt_operator_failure_snapshot
       changed_when: false
       failed_when: false
 
-    - name: "[DEBUG] Show OneAgent logs"
+    - name: "[DEBUG] Show namespace snapshot"
       ansible.builtin.debug:
-        msg: "{{ dt_debug_oneagent_logs.stdout_lines }}"
+        msg: "{{ dt_operator_failure_snapshot.stdout_lines }}"
 
-    - name: "[DEBUG] Describe ActiveGate pod(s)"
-      shell: kubectl -n dynatrace describe pods -l app.kubernetes.io/name=activegate
-      register: dt_debug_activegate_describe
-      changed_when: false
-      failed_when: false
+    - name: Record that the Dynatrace Operator install is degraded
+      ansible.builtin.set_fact:
+        dynatrace_operator_install_failed: true
+        dynatrace_operator_failure_reason: >-
+          {{ ansible_failed_result.msg | default(ansible_failed_task.name | default('unknown task failed - see [DEBUG] output above')) }}
 
-    - name: "[DEBUG] Show ActiveGate pod description"
+    - name: "[DEGRADED] Dynatrace Operator install did not complete - continuing"
       ansible.builtin.debug:
-        msg: "{{ dt_debug_activegate_describe.stdout_lines }}"
-
-    - name: "[DEBUG] ActiveGate container logs"
-      shell: kubectl -n dynatrace logs -l app.kubernetes.io/name=activegate --all-containers --tail=200
-      register: dt_debug_activegate_logs
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show ActiveGate logs"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_activegate_logs.stdout_lines }}"
-
-    - name: "[DEBUG] CSI driver pod status + logs"
-      shell: |
-        kubectl -n dynatrace get pods -l app.kubernetes.io/app=dynatrace-oneagent-csi-driver -o wide
-        echo "--- logs ---"
-        kubectl -n dynatrace logs -l app.kubernetes.io/app=dynatrace-oneagent-csi-driver --all-containers --tail=100
-      register: dt_debug_csi
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show CSI driver status/logs"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_csi.stdout_lines }}"
-
-    - name: "[DEBUG] dynatrace-operator logs"
-      shell: kubectl -n dynatrace logs deploy/dynatrace-operator --tail=200
-      register: dt_debug_operator_logs
-      changed_when: false
-      failed_when: false
-
-    - name: "[DEBUG] Show dynatrace-operator logs"
-      ansible.builtin.debug:
-        msg: "{{ dt_debug_operator_logs.stdout_lines }}"
-
-    - name: Fail after capturing diagnostics (OneAgent/ActiveGate did not reach Running and Ready)
-      ansible.builtin.fail:
         msg: >-
-          Dynatrace operator install did not reach Ready state (OneAgent and/or ActiveGate) -
-          see the [DEBUG] task output above (DynaKube status, pod events, describes, and logs)
-          for the cause.
+          Dynatrace Operator install did not complete successfully
+          ({{ dynatrace_operator_failure_reason }}). This does not block the rest of the
+          sandbox build: Kubernetes monitoring settings, VS Code, and the demo apps do not
+          depend on this role and will still be attempted. The overall run will be reported
+          as DEGRADED instead of SUCCESS. See the [DEBUG] output above for the cause. To get
+          full-stack monitoring on this host manually, install the classic Dynatrace OneAgent
+          separately (not automated by this playbook).
