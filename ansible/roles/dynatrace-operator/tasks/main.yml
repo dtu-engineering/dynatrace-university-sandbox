@@ -382,19 +382,32 @@
           register: dt_classic_oneagent_install
           changed_when: true
 
-        - name: Verify classic Dynatrace OneAgent is running
+        - name: Verify classic Dynatrace OneAgent service is active
+          # oneagentctl has no generic "state"/"status" parameter (only
+          # per-setting get/set - see the CLI reference); systemctl against
+          # the service the installer itself starts is the actual signal.
           become: true
-          ansible.builtin.command: /opt/dynatrace/oneagent/agent/tools/oneagentctl --get-state
+          ansible.builtin.command: systemctl is-active oneagent
           register: dt_classic_oneagent_state
           retries: 6
           delay: 10
-          until: dt_classic_oneagent_state.rc == 0
+          until: dt_classic_oneagent_state.stdout == "active"
+          changed_when: false
+
+        - name: Confirm classic Dynatrace OneAgent connected to the cluster
+          become: true
+          ansible.builtin.command: /opt/dynatrace/oneagent/agent/tools/oneagentctl --get-host-id
+          register: dt_classic_oneagent_host_id
+          retries: 6
+          delay: 10
+          until: dt_classic_oneagent_host_id.rc == 0 and dt_classic_oneagent_host_id.stdout | trim | length > 0
           changed_when: false
 
         - name: Record classic OneAgent fallback success
           ansible.builtin.set_fact:
             dynatrace_oneagent_fallback_installed: true
             dynatrace_oneagent_fallback_version: "{{ dt_classic_oneagent_resolved_version }}"
+            dynatrace_oneagent_fallback_host_id: "{{ dt_classic_oneagent_host_id.stdout | trim }}"
 
       rescue:
         - name: "[DEBUG] Classic OneAgent installer output"

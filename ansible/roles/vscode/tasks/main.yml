@@ -32,11 +32,29 @@
     systemctl enable code-server@{{ instance_user }}
     systemctl start code-server@{{ instance_user }}
 
+# template/copy never create missing destination directories - they only
+# write the file. code-server creates this directory itself on first start,
+# but that's a race against this task, not a guarantee: if the service
+# hasn't finished its first startup by the time this task runs, the
+# directory doesn't exist yet and the template fails. Create it explicitly
+# so this doesn't depend on service startup timing at all.
+- name: Ensure code-server config directory exists
+  ansible.builtin.file:
+    path: "/home/{{ instance_user }}/.config/code-server"
+    state: directory
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0755"
+  become: true
+
 - name: Configure VSCode
   ansible.builtin.template:
     src: config.yaml.j2
     dest: "/home/{{ instance_user }}/.config/code-server/config.yaml"
-    mode: 0600
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0600"
+  become: true
 
 - name: Ensure manifests directory exists
   ansible.builtin.file:
