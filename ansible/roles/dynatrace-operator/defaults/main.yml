@@ -20,7 +20,7 @@ dt_host_group: "DTU-Dynatrace-Sandbox-HG"
 # two lines - `false` is the default). Leave everything else in this role
 # (the outer rescue, the classic OneAgent fallback, the DEGRADED reporting)
 # in place - that part is the actual reliability feature, not test scaffolding.
-dt_operator_test_force_oneagent_failure: false
+dt_operator_test_force_oneagent_failure: true
 dt_operator_test_bad_oneagent_version: "1.0.0.19700101-000000"
 
 # ── Classic Dynatrace OneAgent fallback (used when the Operator/OneAgent
