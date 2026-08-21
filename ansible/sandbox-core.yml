@@ -90,6 +90,8 @@
             bizevent_extra:
               degraded.components: "{{ sandbox_degraded_components | join(',') }}"
               degraded.reason: "{{ dynatrace_operator_failure_reason | default('') }}"
+              oneagent.fallback.installed: "{{ dynatrace_oneagent_fallback_installed | default(false) }}"
+              oneagent.fallback.version: "{{ dynatrace_oneagent_fallback_version | default('') }}"
           when: sandbox_degraded_components | length > 0
 
       rescue:

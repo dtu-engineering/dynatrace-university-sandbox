@@ -160,6 +160,14 @@ spec:
       # Example: <major>.<minor>.<release>.<timestamp>, e.g. 1.200.0.20240101-000000
       #
       # version: ""
+      {% if dt_operator_test_force_oneagent_failure | default(false) %}
+      # TEST-ONLY: intentionally invalid version so the OneAgent image pull
+      # fails and pods never reach Ready - exercises the classic OneAgent
+      # fallback path. Set dt_operator_test_force_oneagent_failure: false in
+      # roles/dynatrace-operator/defaults/main.yml (or override it) to remove
+      # this override and return to normal, unpinned OneAgent versions.
+      version: "{{ dt_operator_test_bad_oneagent_version }}"
+      {% endif %}
 
       # Optional: Define resources requests and limits for the initContainer.
       #

@@ -147,7 +147,10 @@
             | jq '[.items[] | select(.status.phase=="Running")
                    | select(all(.status.containerStatuses[]; .ready==true))] | length'
           register: oneagent_ready
-          retries: 15
+          # Shortened automatically when dt_operator_test_force_oneagent_failure
+          # is set, so exercising the fallback path doesn't require waiting out
+          # the full production timeout on a pod that will never come up.
+          retries: "{{ (dt_operator_test_force_oneagent_failure | default(false)) | ternary(3, 15) }}"
           delay: 40
           until: oneagent_ready.stdout | int == (oneagent_count.stdout | int)
 
@@ -157,7 +160,7 @@
             | jq '[.items[] | select(.status.phase=="Running")
                    | select(all(.status.containerStatuses[]; .ready==true))] | length'
           register: activegate_ready
-          retries: 15
+          retries: "{{ (dt_operator_test_force_oneagent_failure | default(false)) | ternary(3, 15) }}"
           delay: 30
           until: activegate_ready.stdout | int == (activegate_count.stdout | int)
 
@@ -298,13 +301,124 @@
         dynatrace_operator_failure_reason: >-
           {{ ansible_failed_result.msg | default(ansible_failed_task.name | default('unknown task failed - see [DEBUG] output above')) }}
 
+    # Best-effort fallback: the Operator-managed OneAgent didn't come up, so
+    # fall back to a classic OneAgent install so the host still gets
+    # full-stack monitoring. Uses the InstallerDownload-scoped token created
+    # at the top of this role - if that token itself was the failure point,
+    # this whole block fails fast into its own rescue below and is recorded
+    # as "fallback also failed" rather than raising a second playbook error.
+    - name: Install classic Dynatrace OneAgent as a fallback (best-effort)
+      block:
+        - name: Use the explicitly pinned classic OneAgent version
+          ansible.builtin.set_fact:
+            dt_classic_oneagent_resolved_version: "{{ dt_classic_oneagent_version }}"
+          when: dt_classic_oneagent_version | length > 0
+
+        - name: List available classic OneAgent versions for this tenant
+          ansible.builtin.uri:
+            url: "{{ dynatrace_environment_url }}/api/v1/deployment/installer/agent/versions/unix/{{ dt_classic_oneagent_installer_type }}"
+            method: GET
+            headers:
+              Authorization: "Api-Token {{ dynatrace_operator_token_result.json.token }}"
+            status_code: [200]
+          register: dt_classic_oneagent_versions
+          retries: "{{ network_task_retries }}"
+          delay: "{{ network_task_delay }}"
+          until: dt_classic_oneagent_versions is succeeded
+          when: dt_classic_oneagent_version | length == 0
+
+        - name: Filter available versions to the pinned sprint prefix
+          ansible.builtin.set_fact:
+            dt_classic_oneagent_candidates: >-
+              {{ dt_classic_oneagent_versions.json.availableVersions
+                 | select('match', '^' ~ dt_classic_oneagent_version_prefix | regex_escape ~ '\.') | list }}
+          when: dt_classic_oneagent_version | length == 0
+
+        - name: Fall back to every available version if none matched the pinned sprint
+          ansible.builtin.set_fact:
+            dt_classic_oneagent_candidates: "{{ dt_classic_oneagent_versions.json.availableVersions }}"
+          when:
+            - dt_classic_oneagent_version | length == 0
+            # default([]) guards the case where the previous task (which sets
+            # this var) was itself skipped - can't happen given the identical
+            # leading condition above, but avoids relying on when-list
+            # short-circuit behavior for an undefined-variable check.
+            - (dt_classic_oneagent_candidates | default([])) | length == 0
+
+        - name: Select the newest candidate by build timestamp
+          # Version strings are "<major>.<minor>.<patch>.<YYYYMMDD-HHMMSS>" -
+          # sorting the strings directly is wrong once the patch number's
+          # digit count differs ("1.331.42..." < "1.331.5..." lexicographically,
+          # even though 42 > 5), so sort by the fixed-width timestamp suffix
+          # instead, which is always monotonic with actual release order.
+          ansible.builtin.set_fact:
+            dt_classic_oneagent_resolved_version: >-
+              {{
+                (dt_classic_oneagent_candidates
+                 | map('regex_replace', '^.*\.([0-9]{8}-[0-9]{6})$', '\1')
+                 | zip(dt_classic_oneagent_candidates) | sort | list | last)[1]
+              }}
+          when: dt_classic_oneagent_version | length == 0
+
+        - name: Download classic Dynatrace OneAgent installer
+          ansible.builtin.get_url:
+            url: >-
+              {{ dynatrace_environment_url }}/api/v1/deployment/installer/agent/unix/{{ dt_classic_oneagent_installer_type }}/version/{{ dt_classic_oneagent_resolved_version }}?arch={{ dt_classic_oneagent_arch }}
+            dest: /tmp/Dynatrace-OneAgent.sh
+            mode: "0700"
+            headers:
+              Authorization: "Api-Token {{ dynatrace_operator_token_result.json.token }}"
+          register: dt_classic_oneagent_download
+          retries: "{{ network_task_retries }}"
+          delay: "{{ network_task_delay }}"
+          until: dt_classic_oneagent_download is succeeded
+
+        - name: Run classic Dynatrace OneAgent installer
+          become: true
+          ansible.builtin.command: >-
+            /bin/sh /tmp/Dynatrace-OneAgent.sh
+            --set-host-group={{ dt_host_group }}
+            --set-host-tag={{ dt_host_group }}
+          register: dt_classic_oneagent_install
+          changed_when: true
+
+        - name: Verify classic Dynatrace OneAgent is running
+          become: true
+          ansible.builtin.command: /opt/dynatrace/oneagent/agent/tools/oneagentctl --get-state
+          register: dt_classic_oneagent_state
+          retries: 6
+          delay: 10
+          until: dt_classic_oneagent_state.rc == 0
+          changed_when: false
+
+        - name: Record classic OneAgent fallback success
+          ansible.builtin.set_fact:
+            dynatrace_oneagent_fallback_installed: true
+            dynatrace_oneagent_fallback_version: "{{ dt_classic_oneagent_resolved_version }}"
+
+      rescue:
+        - name: "[DEBUG] Classic OneAgent installer output"
+          ansible.builtin.debug:
+            msg: >-
+              {{ (dt_classic_oneagent_install.stdout_lines | default([]))
+                 + (dt_classic_oneagent_install.stderr_lines | default([])) }}
+
+        - name: Record classic OneAgent fallback failure
+          ansible.builtin.set_fact:
+            dynatrace_oneagent_fallback_installed: false
+
     - name: "[DEGRADED] Dynatrace Operator install did not complete - continuing"
       ansible.builtin.debug:
         msg: >-
           Dynatrace Operator install did not complete successfully
-          ({{ dynatrace_operator_failure_reason }}). This does not block the rest of the
-          sandbox build: Kubernetes monitoring settings, VS Code, and the demo apps do not
-          depend on this role and will still be attempted. The overall run will be reported
-          as DEGRADED instead of SUCCESS. See the [DEBUG] output above for the cause. To get
-          full-stack monitoring on this host manually, install the classic Dynatrace OneAgent
-          separately (not automated by this playbook).
+          ({{ dynatrace_operator_failure_reason }}).
+          {{ (dynatrace_oneagent_fallback_installed | default(false))
+             | ternary(
+                 'Classic Dynatrace OneAgent ' + (dynatrace_oneagent_fallback_version | default('unknown')) +
+                 ' was installed as a fallback, so this host is still monitored.',
+                 'The classic Dynatrace OneAgent fallback was ALSO not installed successfully - this host has NO Dynatrace monitoring right now.'
+               ) }}
+          This does not block the rest of the sandbox build: Kubernetes monitoring settings,
+          VS Code, and the demo apps do not depend on this role and will still be attempted.
+          The overall run will be reported as DEGRADED instead of SUCCESS. See the [DEBUG]
+          output above for the cause.

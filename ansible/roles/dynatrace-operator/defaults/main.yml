@@ -5,3 +5,38 @@ dt_operator_dt_access_token_name: "Dynatrace-Operator-Token"
 dt_operator_dt_data_ingest_token_name: "Dynatrace-Operator-Data-Ingest-Token"
 dt_dynakube_api_version: "dynatrace.com/v1beta5" # https://docs.dynatrace.com/docs/ingest-from/setup-on-k8s/reference/dynakube-parameters
 dt_host_group: "DTU-Dynatrace-Sandbox-HG"
+
+# ── TEST-ONLY: forces the Operator's OneAgent pods to fail so the classic
+# OneAgent fallback path (see tasks/main.yml's rescue) can be exercised
+# on demand, without waiting for a real cluster/registry outage.
+#
+# Set to `true` to pin oneAgent.cloudNativeFullStack.version in the DynaKube
+# manifest to dt_operator_test_bad_oneagent_version - a version string that
+# will never exist, so the OneAgent image pull fails permanently and the
+# pods never reach Running/Ready, exactly like the real "image not available"
+# failure this is meant to reproduce.
+#
+# TO REMOVE AFTER TESTING: set this back to `false` (or delete both of these
+# two lines - `false` is the default). Leave everything else in this role
+# (the outer rescue, the classic OneAgent fallback, the DEGRADED reporting)
+# in place - that part is the actual reliability feature, not test scaffolding.
+dt_operator_test_force_oneagent_failure: false
+dt_operator_test_bad_oneagent_version: "1.0.0.19700101-000000"
+
+# ── Classic Dynatrace OneAgent fallback (used when the Operator/OneAgent
+# Operator-managed pods don't reach Ready - see tasks/main.yml's rescue) ──
+#
+# Exact pin, e.g. "1.331.42.20260204-101530" (format documented at
+# https://docs.dynatrace.com/docs/dynatrace-api/environment-api/deployment/oneagent/download-oneagent-version).
+# Takes priority over dt_classic_oneagent_version_prefix below when set.
+dt_classic_oneagent_version: ""
+# Sprint-level pin (e.g. "1.331"). When dt_classic_oneagent_version is empty,
+# the role calls the tenant's "list available OneAgent versions" API and
+# selects the newest available build whose version starts with this prefix,
+# so every run on this tenant resolves to the same concrete build until you
+# change the prefix - deterministic without you having to know the exact
+# timestamped build string up front. Falls back to the newest available
+# version overall if nothing matches this prefix.
+dt_classic_oneagent_version_prefix: "1.331"
+dt_classic_oneagent_installer_type: "default"
+dt_classic_oneagent_arch: "x86"
