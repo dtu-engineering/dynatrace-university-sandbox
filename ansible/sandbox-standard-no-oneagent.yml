@@ -1,5 +1,5 @@
 ---
-- name: Dynatrace University Sandbox - Standard
+- name: Dynatrace University Sandbox - Standard (no Dynatrace Operator / OneAgent)
   hosts: localhost
   connection: local
   vars:
@@ -35,15 +35,6 @@
           include_role:
             name: dynatrace-settings
 
-        - name: Deploy Dynatrace Operator
-          include_role:
-            name: dynatrace-operator
-
-        - name: Enable Kubernetes monitoring
-          include_role:
-            name: dynatrace-settings
-            tasks_from: kubernetes-monitoring.yml
-
         - name: Deploy VS Code Server
           include_role:
             name: vscode
@@ -70,10 +61,14 @@
           vars:
             sandbox_scenario: "standard"
 
-        # dynatrace_operator_install_failed is set by roles/dynatrace-operator's
-        # rescue if the Operator didn't come up - that role treats itself as
-        # non-fatal so everything above still runs, but the run as a whole
-        # should be reported as degraded rather than a clean SUCCESS.
+        # dynatrace_operator_install_failed is only ever set by roles/
+        # dynatrace-operator's rescue - which this variant never runs - so
+        # sandbox_degraded_components is always empty here and the run always
+        # reports SUCCESS (never DEGRADED). That's correct: skipping the
+        # Operator on purpose isn't a degraded condition. Kept identical to
+        # sandbox-standard.yml anyway so this file stays a minimal diff, and so
+        # nothing needs to change here if a future non-Operator degradation
+        # source is ever added.
         - name: Determine overall completion status
           set_fact:
             sandbox_degraded_components: "{{ (dynatrace_operator_install_failed | default(false)) | ternary(['dynatrace-operator'], []) }}"

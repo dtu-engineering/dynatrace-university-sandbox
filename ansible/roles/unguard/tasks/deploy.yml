@@ -8,6 +8,9 @@
     depth: 1
     force: true
   register: unguard_git_clone
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: unguard_git_clone is succeeded
 
 - name: Get Unguard git remote origin
   ansible.builtin.shell: |
@@ -41,10 +44,14 @@
       --namespace "{{ unguard_namespace }}" \
       --create-namespace \
       --wait
-  environment: 
+  environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: mariadb_install
   changed_when: "'STATUS: deployed' in mariadb_install.stdout or 'STATUS: upgraded' in mariadb_install.stdout"
+  # See the note on the Unguard chart install below - same rationale.
+  retries: 2
+  delay: 15
+  until: mariadb_install is succeeded
 
 - name: Install Unguard Helm chart
   ansible.builtin.shell: |
@@ -58,6 +65,12 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: unguard_install
   changed_when: "'STATUS: deployed' in unguard_install.stdout or 'STATUS: upgraded' in unguard_install.stdout"
+  # A transient cluster hiccup (e.g. a pod not ready inside the --wait window)
+  # is retried rather than failing the whole playbook outright; still fatal
+  # once retries are exhausted, since Unguard doesn't have a soft-fail path.
+  retries: 2
+  delay: 15
+  until: unguard_install is succeeded
 
 - name: Ensure configmap directory exists
   ansible.builtin.file:

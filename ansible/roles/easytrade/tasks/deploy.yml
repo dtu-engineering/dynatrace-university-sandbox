@@ -8,6 +8,9 @@
     depth: 1
     force: true
   register: git_clone
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: git_clone is succeeded
 
 - name: Ensure easytrade namespace exists
   ansible.builtin.shell: |
@@ -27,6 +30,12 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: easytrade_install
   changed_when: "'STATUS: deployed' in easytrade_install.stdout or 'STATUS: upgraded' in easytrade_install.stdout"
+  # A transient cluster hiccup (e.g. a pod not ready inside the --wait window)
+  # is retried rather than failing the whole playbook outright; still fatal
+  # once retries are exhausted, since EasyTrade doesn't have a soft-fail path.
+  retries: 2
+  delay: 15
+  until: easytrade_install is succeeded
 
 - name: Wait for Easytrade deployments to exist
   ansible.builtin.shell: kubectl -n "{{ easytrade_namespace }}" get deployment

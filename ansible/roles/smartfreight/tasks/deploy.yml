@@ -150,6 +150,9 @@
   register: smartfreight_postgres_install
   changed_when: "'STATUS: deployed' in smartfreight_postgres_install.stdout or 'STATUS: upgraded' in smartfreight_postgres_install.stdout"
   no_log: true
+  retries: 2
+  delay: 15
+  until: smartfreight_postgres_install is succeeded
 
 # ── Phase 4: SmartFreight services ──────────────────────────────────────────
 
@@ -170,6 +173,9 @@
   register: smartfreight_tms_api_install
   changed_when: "'STATUS: deployed' in smartfreight_tms_api_install.stdout or 'STATUS: upgraded' in smartfreight_tms_api_install.stdout"
   failed_when: false
+  retries: 2
+  delay: 15
+  until: smartfreight_tms_api_install.rc == 0
 
 - name: Install/upgrade tms-agent-service
   ansible.builtin.shell: |
@@ -188,6 +194,9 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: smartfreight_tms_agent_install
   changed_when: "'STATUS: deployed' in smartfreight_tms_agent_install.stdout or 'STATUS: upgraded' in smartfreight_tms_agent_install.stdout"
+  retries: 2
+  delay: 15
+  until: smartfreight_tms_agent_install is succeeded
 
 - name: Install/upgrade weather-agent-service
   ansible.builtin.shell: |
@@ -205,6 +214,9 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: smartfreight_weather_agent_install
   changed_when: "'STATUS: deployed' in smartfreight_weather_agent_install.stdout or 'STATUS: upgraded' in smartfreight_weather_agent_install.stdout"
+  retries: 2
+  delay: 15
+  until: smartfreight_weather_agent_install is succeeded
 
 - name: Install/upgrade agent-service
   ansible.builtin.shell: |
@@ -224,6 +236,9 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: smartfreight_agent_install
   changed_when: "'STATUS: deployed' in smartfreight_agent_install.stdout or 'STATUS: upgraded' in smartfreight_agent_install.stdout"
+  retries: 2
+  delay: 15
+  until: smartfreight_agent_install is succeeded
 
 # ClusterIP, not LoadBalancer: the ALB + Traefik Ingress (tasks/ingress.yml)
 # is the public entry point, so no k3s ServiceLB address is needed here.
@@ -243,6 +258,9 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: smartfreight_frontend_install
   changed_when: "'STATUS: deployed' in smartfreight_frontend_install.stdout or 'STATUS: upgraded' in smartfreight_frontend_install.stdout"
+  retries: 2
+  delay: 15
+  until: smartfreight_frontend_install is succeeded
 
 - name: Install/upgrade load-generator
   ansible.builtin.shell: |
@@ -258,6 +276,9 @@
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: smartfreight_load_generator_install
   changed_when: "'STATUS: deployed' in smartfreight_load_generator_install.stdout or 'STATUS: upgraded' in smartfreight_load_generator_install.stdout"
+  retries: 2
+  delay: 15
+  until: smartfreight_load_generator_install is succeeded
 
 - name: Wait for SmartFreight deployments to exist
   ansible.builtin.command: kubectl -n "{{ smartfreight_namespace }}" get deployment

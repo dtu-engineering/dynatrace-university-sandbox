@@ -14,6 +14,10 @@
     dest: /tmp/awscliv2.zip
     mode: "0644"
   when: smartfreight_aws_cli_check.rc != 0
+  register: smartfreight_awscli_download
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: smartfreight_awscli_download is succeeded
 
 - name: Unpack AWS CLI v2 installer
   ansible.builtin.unarchive:
@@ -51,6 +55,9 @@
       --region {{ smartfreight_aws_region }}
   when: not smartfreight_release_marker_stat.stat.exists
   register: smartfreight_s3_download
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: smartfreight_s3_download is succeeded
 
 - name: Extract SmartFreight release archive
   ansible.builtin.unarchive:

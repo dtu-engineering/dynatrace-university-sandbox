@@ -7,8 +7,18 @@
       Content-Type: "application/json"
     body_format: json
     body:
+      # bizevent_extra is optional (defaults to {}) - callers can pass extra
+      # fields (e.g. which components degraded and why) without every caller
+      # needing to know about them.
       - "{{ bizevent_facts | combine({
             'event.type': bizevent_type,
             'event.category': bizevent_category
-          }) }}"
+          }) | combine(bizevent_extra | default({})) }}"
     status_code: [200, 202]
+  # A failed bizevent send should never take down the playbook - it's
+  # telemetry about the run, not part of the run itself.
+  retries: 3
+  delay: 5
+  until: bizevent_result is succeeded
+  register: bizevent_result
+  failed_when: false

@@ -1,3 +1,22 @@
 ---
 k3s_version: "v1.35.0+k3s1"
 kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+
+# ── Helm ───────────────────────────────────────────────────────────────────
+# helm_install_script_ref is a git ref on github.com/helm/helm. `main` means
+# the install script is not pinned; set this to a tag once one is confirmed.
+helm_install_script_ref: "main"
+helm_install_script: "get-helm-4"
+helm_install_script_path: "/usr/local/src/get_helm.sh"
+# Empty means "whatever version the install script defaults to". Set to e.g.
+# "v4.0.0" to pin the installed Helm binary.
+helm_version: ""
+
+# ── Apt hardening ──────────────────────────────────────────────────────────
+apt_ubuntu_archive_url: "http://archive.ubuntu.com/ubuntu"
+apt_acquire_retries: 5
+apt_acquire_timeout: 30
+
+# ── Retry policy for tasks that touch the network ──────────────────────────
+network_task_retries: 5
+network_task_delay: 10
