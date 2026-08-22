@@ -1,0 +1,119 @@
+---
+- name: Dynatrace University Sandbox - Standard (no Dynatrace Operator / OneAgent)
+  hosts: localhost
+  connection: local
+  vars:
+    ansible_config_file_path: './ansible_config_vars.yml'
+  tasks:
+    - name: Load aether config vars
+      include_vars:
+        file: "{{ ansible_config_file_path }}"
+
+    - name: Initialize business event facts
+      include_role:
+        name: business-events
+        tasks_from: bizevent-set-facts.yml
+
+    - name: Send START business event
+      include_role:
+        name: business-events
+        tasks_from: bizevent-send.yml
+      vars:
+        bizevent_type: "aether-instance-sandbox-start"
+        bizevent_category: "INFO"
+
+    - block:
+        - name: Load sandbox config vars
+          include_vars:
+            file: ./ansible_config_vars.yml
+
+        - name: Deploy Kubernetes base
+          include_role:
+            name: kubernetes
+
+        - name: Apply Dynatrace settings
+          include_role:
+            name: dynatrace-settings
+
+        - name: Deploy VS Code Server
+          include_role:
+            name: vscode
+
+        - name: Deploy Smartfreight
+          include_role:
+            name: smartfreight
+
+        - name: Deploy EasyTrade
+          include_role:
+            name: easytrade
+
+        - name: Deploy OpenTelemetry Demo
+          include_role:
+            name: opentelemetry-demo
+
+        - name: Deploy Unguard
+          include_role:
+            name: unguard
+
+        - name: Display access links
+          include_role:
+            name: display-links
+          vars:
+            sandbox_scenario: "standard"
+
+        # dynatrace_operator_install_failed is only ever set by roles/
+        # dynatrace-operator's rescue - which this variant never runs - so
+        # sandbox_degraded_components is always empty here and the run always
+        # reports SUCCESS (never DEGRADED). That's correct: skipping the
+        # Operator on purpose isn't a degraded condition. Kept identical to
+        # sandbox-standard.yml anyway so this file stays a minimal diff, and so
+        # nothing needs to change here if a future non-Operator degradation
+        # source is ever added.
+        - name: Determine overall completion status
+          set_fact:
+            sandbox_degraded_components: "{{ (dynatrace_operator_install_failed | default(false)) | ternary(['dynatrace-operator'], []) }}"
+
+        - name: Print sandbox completion summary
+          debug:
+            msg: >-
+              {{ (sandbox_degraded_components | length == 0) | ternary(
+                'Sandbox build completed successfully - all components healthy.',
+                'Sandbox build completed with DEGRADED components: ' + (sandbox_degraded_components | join(', ')) +
+                '. Everything else deployed normally - see the [DEBUG]/[DEGRADED] output above for the cause.'
+              ) }}
+
+        - name: Send SUCCESS business event
+          include_role:
+            name: business-events
+            tasks_from: bizevent-send.yml
+          vars:
+            bizevent_type: "aether-instance-sandbox-complete"
+            bizevent_category: "INFO"
+          when: sandbox_degraded_components | length == 0
+
+        - name: Send DEGRADED business event
+          include_role:
+            name: business-events
+            tasks_from: bizevent-send.yml
+          vars:
+            bizevent_type: "aether-instance-sandbox-degraded"
+            bizevent_category: "WARNING"
+            bizevent_extra:
+              degraded.components: "{{ sandbox_degraded_components | join(',') }}"
+              degraded.reason: "{{ dynatrace_operator_failure_reason | default('') }}"
+              oneagent.fallback.installed: "{{ dynatrace_oneagent_fallback_installed | default(false) }}"
+              oneagent.fallback.version: "{{ dynatrace_oneagent_fallback_version | default('') }}"
+          when: sandbox_degraded_components | length > 0
+
+      rescue:
+        - name: Send FAILURE business event
+          include_role:
+            name: business-events
+            tasks_from: bizevent-send.yml
+          vars:
+            bizevent_type: "aether-instance-sandbox-failure"
+            bizevent_category: "FAILURE"
+
+        - name: Explicitly fail playbook
+          fail:
+            msg: "Playbook failed - triggering failure exit code"
