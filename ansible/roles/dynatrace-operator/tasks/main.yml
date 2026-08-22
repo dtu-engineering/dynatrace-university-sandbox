@@ -301,6 +301,34 @@
         dynatrace_operator_failure_reason: >-
           {{ ansible_failed_result.msg | default(ansible_failed_task.name | default('unknown task failed - see [DEBUG] output above')) }}
 
+    # The Operator's mutating webhook and CSI provisioner keep acting on every
+    # namespace matched by this DynaKube's namespaceSelector even though its
+    # OneAgent never became Ready: new pods created by later roles (vscode,
+    # smartfreight, easytrade, unguard, ...) still get an init container +
+    # CSI "oneagent-bin" volume injected, and that mount blocks for minutes
+    # ("csi-provisioner hasn't finished setup yet for DynaKube: dynakube")
+    # because this DynaKube's OneAgent version never resolved. Observed in
+    # testing: that stall alone was enough to push a later Deployment
+    # (smartfreight's frontend) past its progressDeadlineSeconds and fail
+    # the helm install, even though the pod eventually came up fine on its
+    # own several minutes later. Once we've committed to the classic OneAgent
+    # fallback below, the broken DynaKube offers no monitoring value and is
+    # actively harmful to every pod created afterward - remove it. Deleting
+    # the CR is the documented way to stop Operator-managed injection/
+    # provisioning for a DynaKube:
+    # https://docs.dynatrace.com/docs/ingest-from/setup-on-k8s/operation/uninstall
+    # Best-effort and non-fatal - we're already in the degraded path, and the
+    # classic OneAgent fallback below doesn't depend on this succeeding.
+    - name: Remove the partially-configured DynaKube CR so it stops injecting into new pods
+      shell: kubectl -n {{ dt_operator_namespace }} delete dynakube dynakube --ignore-not-found --timeout=120s
+      register: dt_dynakube_cleanup
+      changed_when: "'deleted' in dt_dynakube_cleanup.stdout"
+      failed_when: false
+
+    - name: "[DEBUG] Show DynaKube cleanup result"
+      ansible.builtin.debug:
+        msg: "{{ dt_dynakube_cleanup.stdout_lines + dt_dynakube_cleanup.stderr_lines }}"
+
     # Best-effort fallback: the Operator-managed OneAgent didn't come up, so
     # fall back to a classic OneAgent install so the host still gets
     # full-stack monitoring. Uses the InstallerDownload-scoped token created
@@ -431,6 +459,8 @@
                  ' was installed as a fallback, so this host is still monitored.',
                  'The classic Dynatrace OneAgent fallback was ALSO not installed successfully - this host has NO Dynatrace monitoring right now.'
                ) }}
+          The partially-configured DynaKube CR was removed so its webhook/CSI provisioner
+          can no longer inject into (and stall) pods created by later roles.
           This does not block the rest of the sandbox build: Kubernetes monitoring settings,
           VS Code, and the demo apps do not depend on this role and will still be attempted.
           The overall run will be reported as DEGRADED instead of SUCCESS. See the [DEBUG]
