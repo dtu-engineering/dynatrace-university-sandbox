@@ -23,6 +23,14 @@
         bizevent_category: "INFO"
 
     - block:
+        # TEST ONLY: forces an immediate failure so the rescue block below
+        # fires right away (sends the FAILURE bizevent) without waiting for
+        # the rest of the playbook to run. Remove this task to restore
+        # normal behavior.
+        - name: "TEST: force immediate failure"
+          fail:
+            msg: "Intentional test failure - remove this task to run the playbook normally"
+
         - name: Load sandbox config vars
           include_vars:
             file: ./ansible_config_vars.yml
