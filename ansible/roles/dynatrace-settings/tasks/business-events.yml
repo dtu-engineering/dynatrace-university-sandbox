@@ -7,7 +7,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:oneagent.features"
         schemaVersion: "1.5.10"
@@ -29,7 +29,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:oneagent.features"
         schemaVersion: "1.5.10"

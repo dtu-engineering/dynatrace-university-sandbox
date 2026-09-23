@@ -21,7 +21,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:app-transition.kubernetes"
         schemaVersion: "1.1"

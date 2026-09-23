@@ -1,5 +1,34 @@
 ---
 
+# Dynatrace issues two kinds of tokens, distinguishable by a fixed prefix on
+# the token string itself (see
+# https://docs.dynatrace.com/docs/dynatrace-api/basics/dynatrace-api-authentication#token-format):
+#   - Classic access token - prefix "dt0c01." - authenticates with the
+#     "Api-Token" realm and is used to mint additional narrowly-scoped
+#     tokens via POST /api/v2/apiTokens (the existing behavior below).
+#   - Platform token - prefix "dt0s16." - authenticates with the "Bearer"
+#     realm against the same dynatrace_environment_url used today, and
+#     already carries every scope this sandbox needs, so it's used
+#     directly instead of minting additional tokens.
+# dynatrace_environment_token may be either kind. This fact is computed once
+# here (before dynatrace-settings mints/uses its token) and is also
+# recomputed defensively at the top of dynatrace-operator, since that role
+# is always run after this one in every playbook that uses it, but
+# shouldn't silently break if that ever changes.
+- name: Determine whether the Dynatrace token provided is a platform token
+  ansible.builtin.set_fact:
+    dynatrace_use_platform_token: "{{ (dynatrace_environment_token | default('')) is match('dt0s16\\.') }}"
+  when: dynatrace_use_platform_token is not defined
+
+- name: Require dynatrace_environment_token to be a recognized access or platform token
+  ansible.builtin.assert:
+    that:
+      - (dynatrace_environment_token | default('')) is match('dt0c01\\.|dt0s16\\.')
+    fail_msg: >-
+      dynatrace_environment_token must be a classic access token (prefix "dt0c01.") or a
+      platform token (prefix "dt0s16.") so the dynatrace-settings role can authenticate
+      against the Dynatrace API.
+
 - name: Create Settings Access Token
   include_tasks: access-token.yml
 

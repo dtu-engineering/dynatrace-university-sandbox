@@ -13,9 +13,22 @@
         - logs.ingest
     body_format: json
     headers:
-      Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+      Authorization: "Api-Token {{ dynatrace_environment_token }}"
   register: dynatrace_opentelemetry_token_result
+  when: not dynatrace_use_platform_token
 
-- name: Set Dynatrace Opentelemetry Ingest Token Fact
+- name: Set Dynatrace Opentelemetry Ingest Token Fact (minted access token)
   set_fact:
     dynatrace_opentelemetry_token: "{{ dynatrace_opentelemetry_token_result.json.token }}"
+  when: not dynatrace_use_platform_token
+
+# The platform token already carries openTelemetryTrace.ingest/metrics.ingest/
+# logs.ingest - use it directly instead of minting a narrowly-scoped ingest
+# token. Note: this raw value is embedded as-is into the "dynatrace-secrets"
+# k8s secret consumed by the (externally-fetched) SmartFreight helm chart -
+# same convention as the minted-token branch above, which also stores the
+# raw token with no realm prefix baked in.
+- name: Set Dynatrace Opentelemetry Ingest Token Fact (platform token)
+  set_fact:
+    dynatrace_opentelemetry_token: "{{ dynatrace_environment_token }}"
+  when: dynatrace_use_platform_token

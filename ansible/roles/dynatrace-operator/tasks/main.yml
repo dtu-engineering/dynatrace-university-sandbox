@@ -11,6 +11,15 @@
 # roles/business-events and sandbox-standard.yml/sandbox-core.yml.
 - name: Deploy and verify the Dynatrace Operator (non-fatal on failure)
   block:
+    # Defensive/idempotent - dynatrace-settings (which always runs before this
+    # role in every playbook that includes it) already computes this fact
+    # (see its tasks/main.yml for the full explanation of the two token
+    # prefixes), but this role shouldn't silently break if that ever changes.
+    - name: Determine whether the Dynatrace token provided is a platform token
+      ansible.builtin.set_fact:
+        dynatrace_use_platform_token: "{{ (dynatrace_environment_token | default('')) is match('dt0s16\\.') }}"
+      when: dynatrace_use_platform_token is not defined
+
     - name: Create Dynatrace Operator Token
       uri:
         url: "{{ dynatrace_environment_url }}/api/v2/apiTokens"
@@ -27,11 +36,12 @@
             - settings.write
         body_format: json
         headers:
-          Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+          Authorization: "Api-Token {{ dynatrace_environment_token }}"
       register: dynatrace_operator_token_result
       retries: "{{ network_task_retries }}"
       delay: "{{ network_task_delay }}"
       until: dynatrace_operator_token_result is succeeded
+      when: not dynatrace_use_platform_token
 
     - name: Create Dynatrace Data Ingest Token
       uri:
@@ -46,11 +56,34 @@
             - openTelemetryTrace.ingest
         body_format: json
         headers:
-          Authorization: "Api-Token {{ dynatrace_environment_access_token }}"
+          Authorization: "Api-Token {{ dynatrace_environment_token }}"
       register: dynatrace_data_ingest_token_result
       retries: "{{ network_task_retries }}"
       delay: "{{ network_task_delay }}"
       until: dynatrace_data_ingest_token_result is succeeded
+      when: not dynatrace_use_platform_token
+
+    - name: Set Dynatrace Operator Token Facts (minted access tokens)
+      set_fact:
+        dynatrace_operator_api_token: "{{ dynatrace_operator_token_result.json.token }}"
+        dynatrace_operator_data_ingest_token: "{{ dynatrace_data_ingest_token_result.json.token }}"
+        dynatrace_operator_auth_header: "Api-Token {{ dynatrace_operator_token_result.json.token }}"
+      when: not dynatrace_use_platform_token
+
+    # Platform tokens already carry the scopes covered by the two minted
+    # tokens above, so the same platform token is used for both the
+    # dynakube secret's apiToken and dataIngestToken fields. Dynatrace
+    # Operator 1.10+ detects a platform token automatically (see
+    # https://docs.dynatrace.com/docs/whats-new/dynatrace-operator/dto-fix-1-10-0)
+    # and manages OneAgent/ActiveGate installer downloads itself via Fleet
+    # Management - the InstallerDownload-scoped call below is only still
+    # needed for the classic OneAgent fallback path in the rescue block.
+    - name: Set Dynatrace Operator Token Facts (platform token)
+      set_fact:
+        dynatrace_operator_api_token: "{{ dynatrace_environment_token }}"
+        dynatrace_operator_data_ingest_token: "{{ dynatrace_environment_token }}"
+        dynatrace_operator_auth_header: "Bearer {{ dynatrace_environment_token }}"
+      when: dynatrace_use_platform_token
 
     - name: Create Dynatrace namespace
       command: |
@@ -85,8 +118,8 @@
     - name: Create Dynatrace dynakube secret
       shell: >
         kubectl -n dynatrace create secret generic dynakube
-        --from-literal="apiToken={{ dynatrace_operator_token_result.json.token }}"
-        --from-literal="dataIngestToken={{ dynatrace_data_ingest_token_result.json.token }}"
+        --from-literal="apiToken={{ dynatrace_operator_api_token }}"
+        --from-literal="dataIngestToken={{ dynatrace_operator_data_ingest_token }}"
       # The tokens are embedded directly in this command. no_log makes Ansible
       # redact the result (including `cmd`) before any callback plugin - the
       # OpenTelemetry one included - ever sees it. failed_when below still works:
@@ -331,8 +364,9 @@
 
     # Best-effort fallback: the Operator-managed OneAgent didn't come up, so
     # fall back to a classic OneAgent install so the host still gets
-    # full-stack monitoring. Uses the InstallerDownload-scoped token created
-    # at the top of this role - if that token itself was the failure point,
+    # full-stack monitoring. Uses dynatrace_operator_auth_header (the
+    # InstallerDownload-scoped access token, or the platform token, set at
+    # the top of this role) - if that token itself was the failure point,
     # this whole block fails fast into its own rescue below and is recorded
     # as "fallback also failed" rather than raising a second playbook error.
     - name: Install classic Dynatrace OneAgent as a fallback (best-effort)
@@ -347,7 +381,7 @@
             url: "{{ dynatrace_environment_url }}/api/v1/deployment/installer/agent/versions/unix/{{ dt_classic_oneagent_installer_type }}"
             method: GET
             headers:
-              Authorization: "Api-Token {{ dynatrace_operator_token_result.json.token }}"
+              Authorization: "{{ dynatrace_operator_auth_header }}"
             status_code: [200]
           register: dt_classic_oneagent_versions
           retries: "{{ network_task_retries }}"
@@ -395,7 +429,7 @@
             dest: /tmp/Dynatrace-OneAgent.sh
             mode: "0700"
             headers:
-              Authorization: "Api-Token {{ dynatrace_operator_token_result.json.token }}"
+              Authorization: "{{ dynatrace_operator_auth_header }}"
           register: dt_classic_oneagent_download
           retries: "{{ network_task_retries }}"
           delay: "{{ network_task_delay }}"
