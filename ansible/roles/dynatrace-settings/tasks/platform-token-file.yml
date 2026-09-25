@@ -22,9 +22,9 @@
     mode: "0755"
 
 - name: Save Dynatrace platform token to file
-  ansible.builtin.copy:
-    content: "{{ dynatrace_environment_token }}"
-    dest: "/home/{{ instance_user }}/sandbox/dynatrace-platform-token.pt"
+  ansible.builtin.template:
+    src: platform-token.j2
+    dest: "/home/{{ instance_user }}/sandbox/.platform_token"
     owner: "{{ instance_user }}"
     group: "{{ instance_user }}"
     mode: "0600"
