@@ -29,6 +29,10 @@
       platform token (prefix "dt0s16.") so the dynatrace-settings role can authenticate
       against the Dynatrace API.
 
+- name: Persist Dynatrace platform token to file (skipped for classic access tokens)
+  include_tasks: platform-token-file.yml
+  when: dynatrace_use_platform_token
+
 - name: Create Settings Access Token
   include_tasks: access-token.yml
 

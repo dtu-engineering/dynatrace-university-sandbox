@@ -1,0 +1,30 @@
+---
+
+# Platform tokens (prefix "dt0s16.") are used directly against the tenant
+# instead of minting narrower single-purpose tokens (see main.yml), so
+# they're the one credential in this flow the sandbox user might actually
+# need at a terminal - e.g. to call the Dynatrace API by hand with curl, or
+# to feed the "dt" CLI. Persist it to disk so it's easy to find. Classic
+# access tokens (prefix "dt0c01.") are never written here: dynatrace-settings
+# only ever uses that kind of token to mint other, narrowly-scoped tokens (see
+# access-token.yml/opentelemetry-token.yml), so there's no standing credential
+# worth handing the user in that case, and this task is skipped entirely.
+#
+# This is included from main.yml guarded by `when: dynatrace_use_platform_token`,
+# so every task below can assume that's true.
+
+- name: Ensure sandbox directory exists
+  ansible.builtin.file:
+    path: "/home/{{ instance_user }}/sandbox"
+    state: directory
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0755"
+
+- name: Save Dynatrace platform token to file
+  ansible.builtin.copy:
+    content: "{{ dynatrace_environment_token }}"
+    dest: "/home/{{ instance_user }}/sandbox/dynatrace-platform-token.pt"
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0600"
