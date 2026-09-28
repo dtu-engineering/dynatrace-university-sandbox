@@ -1,4 +1,5 @@
 ---
+vscode_enabled: true
 vscode_domain: "vscode.{{ ingress_domain }}"
 vscode_namespace: "vscode"
 vscode_password: "{{ instance_password }}"

@@ -34,6 +34,7 @@
         - name: Deploy VS Code Server
           include_role:
             name: vscode
+          when: vscode_enabled | default(true) | bool
 
         - name: Display access links
           include_role:

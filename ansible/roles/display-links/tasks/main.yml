@@ -12,10 +12,18 @@
       echo -e "\e[1;32m---------------------------------------\e[0m"
       echo -e "\e[1;32m-----------Application Links ----------\e[0m"
       echo -e "\e[1;32m---------------------------------------\e[0m"
-      {% if sandbox_scenario == "standard" %}
+      {% if sandbox_scenario == "standard" and (unguard_enabled | default(true) | bool) %}
       echo -e "\n\e[1;32mhttps://unguard.{{ ingress_domain }}/ui\e[0m\n"
+      {% endif %}
+      {% if sandbox_scenario == "standard" and (opentelemetry_demo_enabled | default(true) | bool) %}
       echo -e "\e[1;32mhttps://astroshop.{{ ingress_domain }}\e[0m\n"
+      {% endif %}
+      {% if sandbox_scenario == "standard" and (easytrade_enabled | default(true) | bool) %}
       echo -e "\e[1;32mhttps://easytrade.{{ ingress_domain }}/\e[0m\n"
+      {% endif %}
+      {% if sandbox_scenario == "standard" and (smartfreight_enabled | default(true) | bool) %}
       echo -e "\e[1;32mhttps://smartfreight.{{ ingress_domain }}/\e[0m\n"
       {% endif %}
+      {% if vscode_enabled | default(true) | bool %}
       echo -e "\e[1;32mhttps://vscode.{{ ingress_domain }}/\e[0m\n"
+      {% endif %}

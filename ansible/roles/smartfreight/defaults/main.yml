@@ -1,4 +1,6 @@
 ---
+smartfreight_enabled: true
+
 # ── Release artifact (S3) ──────────────────────────────────────────────────────────────────
 smartfreight_namespace: "smartfreight"
 smartfreight_s3_bucket: "dtulabs-university-sandbox"

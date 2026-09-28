@@ -47,22 +47,27 @@
         - name: Deploy VS Code Server
           include_role:
             name: vscode
+          when: vscode_enabled | default(true) | bool
 
         - name: Deploy Smartfreight
           include_role:
             name: smartfreight
+          when: smartfreight_enabled | default(true) | bool
 
         - name: Deploy EasyTrade
           include_role:
             name: easytrade
+          when: easytrade_enabled | default(true) | bool
 
         - name: Deploy OpenTelemetry Demo
           include_role:
             name: opentelemetry-demo
+          when: opentelemetry_demo_enabled | default(true) | bool
 
         - name: Deploy Unguard
           include_role:
             name: unguard
+          when: unguard_enabled | default(true) | bool
 
         - name: Display access links
           include_role:

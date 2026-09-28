@@ -48,7 +48,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:openpipeline.spans.pipelines"
         scope: "environment"
@@ -80,7 +80,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:openpipeline.spans.pipelines"
         scope: "environment"
@@ -107,7 +107,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:openpipeline.spans.pipelines"
         scope: "environment"
@@ -153,7 +153,7 @@
     method: GET
     headers:
       Accept: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     return_content: true
     status_code: [200]
   register: dt_openpipeline_pipelines_lookup
@@ -192,7 +192,7 @@
     method: GET
     headers:
       Accept: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     return_content: true
     status_code: [200]
   register: dt_openpipeline_routing_lookup
@@ -236,7 +236,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       - schemaId: "builtin:openpipeline.spans.routing"
         scope: "environment"
@@ -257,7 +257,7 @@
     headers:
       Accept: "application/json; charset=utf-8"
       Content-Type: "application/json; charset=utf-8"
-      Authorization: "Api-Token {{ dynatrace_settings_token }}"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
     body:
       value: "{{ dt_routing_value }}"
     body_format: json
