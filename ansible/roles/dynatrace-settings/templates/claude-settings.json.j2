@@ -3,7 +3,10 @@
     "CLAUDE_CODE_USE_BEDROCK": "1",
     "AWS_REGION": "{{ ai_tooling_bedrock_region }}",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "{{ ai_tooling_claude_sonnet_model }}",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "{{ ai_tooling_claude_haiku_model }}"
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "{{ ai_tooling_claude_haiku_model }}"{% if dynatrace_use_platform_token | default(false) | bool %},
+    "DT_ENVIRONMENT": "{{ dynatrace_apps_url }}",
+    "DT_PLATFORM_TOKEN": "{{ dynatrace_environment_token }}"{% endif %}
+
   },
   "model": "sonnet",
   "theme": "dark"

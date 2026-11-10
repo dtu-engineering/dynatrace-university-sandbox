@@ -1,0 +1,64 @@
+---
+# Enables generative AI + agentic AI for Dynatrace Assist, so Assist can call
+# tools and run Grail queries on the user's behalf.
+# https://docs.dynatrace.com/docs/shortlink/agentic-and-generative-ai-getting-started
+#
+# service:davis.copilot.datamining-blocklist is a single-object, environment
+# scoped schema, so an existing object must be updated (PUT) rather than
+# created again (POST). schemaVersion is omitted so the latest is used.
+# Failures are non-fatal: this is an enhancement, not a sandbox prerequisite.
+
+- name: Look up existing Dynatrace Assist (generative/agentic AI) settings object
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects?schemaIds=service%3Adavis.copilot.datamining-blocklist&scopes=environment&fields=objectId,value"
+    method: GET
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
+    return_content: true
+    status_code: [200]
+  register: dt_settings_assist_existing
+  failed_when: false
+
+- name: Set fact for existing Dynatrace Assist settings object
+  set_fact:
+    dt_assist_existing_items: "{{ (dt_settings_assist_existing.json | default({})).get('items', []) }}"
+
+- name: Create Dynatrace Assist settings (generative + agentic AI enabled)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects"
+    method: POST
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
+    body:
+      - schemaId: "service:davis.copilot.datamining-blocklist"
+        scope: "environment"
+        value:
+          enableCopilot: true
+          enableAgenticAi: true
+    body_format: json
+    return_content: true
+    status_code: [200, 201, 409]
+  register: dt_settings_enable_assist_agentic_create
+  failed_when: false
+  when: dt_assist_existing_items | length == 0
+
+- name: Update existing Dynatrace Assist settings (generative + agentic AI enabled)
+  uri:
+    url: "{{ dynatrace_environment_url }}/api/v2/settings/objects/{{ dt_assist_existing_items[0].objectId }}"
+    method: PUT
+    headers:
+      Accept: "application/json; charset=utf-8"
+      Content-Type: "application/json; charset=utf-8"
+      Authorization: "{{ dynatrace_settings_auth_header }}"
+    body:
+      # Keep any other existing values (e.g. environment-aware queries) intact.
+      value: "{{ dt_assist_existing_items[0].value | combine({'enableCopilot': true, 'enableAgenticAi': true}) }}"
+    body_format: json
+    return_content: true
+    status_code: [200]
+  register: dt_settings_enable_assist_agentic_update
+  failed_when: false
+  when: dt_assist_existing_items | length > 0

@@ -9,3 +9,7 @@ ai_tooling_bedrock_region: "us-east-1"
 ai_tooling_claude_sonnet_model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 ai_tooling_claude_haiku_model: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 ai_tooling_node_version: "20"
+
+# ── AI tooling: Dynatrace ───────────────────────────────────────────────────
+# https://github.com/Dynatrace/dtctl/releases
+ai_tooling_dtctl_version: "0.45.0"
