@@ -65,18 +65,21 @@
   when: dtctl_download is succeeded
   failed_when: false
 
-# set-credentials stores the literal '${DT_PLATFORM_TOKEN}' reference, which
-# dtctl resolves from the environment at runtime - the token itself never
-# lands in dtctl's config (and no OS keyring is needed on this headless host).
+# This host has no OS keyring, so credentials must use file-based storage
+# (DTCTL_TOKEN_STORAGE=file; also exported from env.sh for later dtctl runs).
+# The token is passed via the environment, not on the command line.
 - name: Configure dtctl context and credentials for the sandbox environment
   become: true
   become_user: "{{ instance_user }}"
   ansible.builtin.shell: |
+    set -e
     dtctl config set-context sandbox --environment "{{ dynatrace_apps_url }}" --token-ref sandbox-token
-    dtctl config set-credentials sandbox-token --token '${DT_PLATFORM_TOKEN}'
+    dtctl config set-credentials sandbox-token --token "$DT_PLATFORM_TOKEN"
     dtctl config use-context sandbox
   environment:
     HOME: "/home/{{ instance_user }}"
+    DTCTL_TOKEN_STORAGE: file
+    DT_PLATFORM_TOKEN: "{{ dynatrace_environment_token }}"
   register: dtctl_configure
   failed_when: false
   when: dtctl_install is succeeded
@@ -98,8 +101,13 @@
 - name: Install the dynatrace Claude Code plugin
   become: true
   become_user: "{{ instance_user }}"
+  # The dynatrace-for-ai repo is itself a Claude Code marketplace
+  # (name: dynatrace-for-ai, plugin: dynatrace), so it doesn't depend on the
+  # built-in marketplace listing, which varies by Claude Code version.
   ansible.builtin.shell: |
-    claude plugin install dynatrace@claude-plugins-official
+    set -e
+    claude plugin marketplace add Dynatrace/dynatrace-for-ai || claude plugin marketplace update dynatrace-for-ai
+    claude plugin install dynatrace@dynatrace-for-ai
   environment:
     HOME: "/home/{{ instance_user }}"
   register: dynatrace_plugin_install

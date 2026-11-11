@@ -35,9 +35,26 @@
     body:
       - schemaId: "service:davis.copilot.datamining-blocklist"
         scope: "environment"
+        # The schema rejects null for these, so they must be set explicitly.
         value:
           enableCopilot: true
           enableAgenticAi: true
+          enableTenantAwareDataMining: true
+          enableDocumentSuggestion: true
+          # PII blocking is off: sandbox tenants only hold demo-app telemetry, and
+          # masking IPs / URL parameters would hinder the learning experience.
+          piiBlockingEnabled: false
+          piiBlockingTypes:
+            emailAddress: false
+            phoneNumber: false
+            ibanBankAccount: false
+            creditCardNumber: false
+            ipAddress: false
+            usBankNumber: false
+            usSocialSecurityNumber: false
+            urlQueryParameters: false
+            canadianSocialInsuranceNumber: false
+          blocklistEntries: []
     body_format: json
     return_content: true
     status_code: [200, 201, 409]
@@ -62,3 +79,13 @@
   register: dt_settings_enable_assist_agentic_update
   failed_when: false
   when: dt_assist_existing_items | length > 0
+
+# These calls are non-fatal, so surface failures in the log instead of hiding them.
+- name: Report Dynatrace Assist (agentic AI) settings result
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'Dynatrace Assist agentic AI enabled.'
+         if ((dt_settings_enable_assist_agentic_create.status | default(0)) in [200, 201]
+             or (dt_settings_enable_assist_agentic_update.status | default(0)) == 200)
+         else 'WARNING: could not enable Dynatrace Assist agentic AI (non-fatal): '
+              ~ (dt_settings_enable_assist_agentic_create.json | default(dt_settings_enable_assist_agentic_update.json | default(dt_settings_enable_assist_agentic_create.msg | default('unknown error')))) | string }}
