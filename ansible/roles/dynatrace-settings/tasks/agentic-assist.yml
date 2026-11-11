@@ -43,17 +43,9 @@
           enableDocumentSuggestion: true
           # PII blocking is off: sandbox tenants only hold demo-app telemetry, and
           # masking IPs / URL parameters would hinder the learning experience.
+          # piiBlockingTypes must be omitted when piiBlockingEnabled is false
+          # (the schema rejects it); it is required when it is true.
           piiBlockingEnabled: false
-          piiBlockingTypes:
-            emailAddress: false
-            phoneNumber: false
-            ibanBankAccount: false
-            creditCardNumber: false
-            ipAddress: false
-            usBankNumber: false
-            usSocialSecurityNumber: false
-            urlQueryParameters: false
-            canadianSocialInsuranceNumber: false
           blocklistEntries: []
     body_format: json
     return_content: true
