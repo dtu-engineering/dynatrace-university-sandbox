@@ -1,0 +1,126 @@
+---
+# Gives sandbox participants the Dynatrace AI tooling alongside Claude Code:
+#   1. dtctl            - Dynatrace CLI (https://github.com/dynatrace-oss/dtctl)
+#   2. dtctl skill      - teaches Claude how to drive dtctl
+#   3. dynatrace plugin - dynatrace-for-ai Claude Code plugin: DQL/observability
+#                         skills + the Dynatrace MCP server
+#                         (https://github.com/Dynatrace/dynatrace-for-ai)
+#
+# All of it authenticates with the environment's platform token, so this file
+# is only included when dynatrace_use_platform_token is true (see main.yml).
+# Access is limited to whatever scopes that token carries - scope the token
+# before the lab if participants should not have write access.
+# Every step is non-fatal: these are additive and must not fail the build.
+
+# dynatrace_apps_url is derived in main.yml (the Claude settings template
+# rendered earlier also needs it).
+
+# ── Environment variables (dtctl + MCP server) ─────────────────────────────
+- name: Ensure ~/.config/dynatrace directory exists
+  ansible.builtin.file:
+    path: "/home/{{ instance_user }}/.config/dynatrace"
+    state: directory
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0700"
+
+- name: Write Dynatrace environment variables file
+  ansible.builtin.template:
+    src: dynatrace-env.sh.j2
+    dest: "/home/{{ instance_user }}/.config/dynatrace/env.sh"
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+    mode: "0600"
+
+- name: Load Dynatrace environment variables in interactive shells
+  ansible.builtin.blockinfile:
+    path: "/home/{{ instance_user }}/.bashrc"
+    marker: "# {mark} dynatrace ai tooling"
+    block: |
+      [ -f "$HOME/.config/dynatrace/env.sh" ] && . "$HOME/.config/dynatrace/env.sh"
+    owner: "{{ instance_user }}"
+    group: "{{ instance_user }}"
+
+# ── dtctl ──────────────────────────────────────────────────────────────────
+- name: Download dtctl {{ ai_tooling_dtctl_version }}
+  ansible.builtin.get_url:
+    url: "https://github.com/Dynatrace/dtctl/releases/download/v{{ ai_tooling_dtctl_version }}/dtctl_{{ ai_tooling_dtctl_version }}_linux_amd64.tar.gz"
+    dest: "/tmp/dtctl_{{ ai_tooling_dtctl_version }}_linux_amd64.tar.gz"
+    mode: "0644"
+  register: dtctl_download
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: dtctl_download is succeeded
+  failed_when: false
+
+- name: Install dtctl to /usr/local/bin
+  become: true
+  ansible.builtin.unarchive:
+    src: "/tmp/dtctl_{{ ai_tooling_dtctl_version }}_linux_amd64.tar.gz"
+    dest: /usr/local/bin
+    include: [dtctl]
+    mode: "0755"
+    remote_src: true
+  register: dtctl_install
+  when: dtctl_download is succeeded
+  failed_when: false
+
+# This host has no OS keyring, so credentials must use file-based storage
+# (DTCTL_TOKEN_STORAGE=file; also exported from env.sh for later dtctl runs).
+# The token is passed via the environment, not on the command line.
+- name: Configure dtctl context and credentials for the sandbox environment
+  become: true
+  become_user: "{{ instance_user }}"
+  ansible.builtin.shell: |
+    set -e
+    dtctl config set-context sandbox --environment "{{ dynatrace_apps_url }}" --token-ref sandbox-token
+    dtctl config set-credentials sandbox-token --token "$DT_PLATFORM_TOKEN"
+    dtctl config use-context sandbox
+  environment:
+    HOME: "/home/{{ instance_user }}"
+    DTCTL_TOKEN_STORAGE: file
+    DT_PLATFORM_TOKEN: "{{ dynatrace_environment_token }}"
+  register: dtctl_configure
+  failed_when: false
+  when: dtctl_install is succeeded
+
+- name: Install the dtctl agent skill for Claude Code (user-wide)
+  become: true
+  become_user: "{{ instance_user }}"
+  ansible.builtin.shell: |
+    dtctl skills install --for claude --global
+  environment:
+    HOME: "/home/{{ instance_user }}"
+  register: dtctl_skill_install
+  failed_when: false
+  when: dtctl_install is succeeded
+
+# ── dynatrace-for-ai Claude Code plugin (skills + Dynatrace MCP server) ────
+# DT_ENVIRONMENT / DT_PLATFORM_TOKEN for the bundled MCP server are provided
+# through the env block of ~/.claude/settings.json (claude-settings.json.j2).
+- name: Install the dynatrace Claude Code plugin
+  become: true
+  become_user: "{{ instance_user }}"
+  # The dynatrace-for-ai repo is itself a Claude Code marketplace
+  # (name: dynatrace-for-ai, plugin: dynatrace), so it doesn't depend on the
+  # built-in marketplace listing, which varies by Claude Code version.
+  ansible.builtin.shell: |
+    set -e
+    claude plugin marketplace add Dynatrace/dynatrace-for-ai || claude plugin marketplace update dynatrace-for-ai
+    claude plugin install dynatrace@dynatrace-for-ai
+  environment:
+    HOME: "/home/{{ instance_user }}"
+  register: dynatrace_plugin_install
+  retries: "{{ network_task_retries }}"
+  delay: "{{ network_task_delay }}"
+  until: dynatrace_plugin_install is succeeded
+  failed_when: false
+
+- name: Report Dynatrace AI tooling install results
+  ansible.builtin.debug:
+    msg:
+      - "dtctl download:      {{ 'ok' if dtctl_download is succeeded else 'FAILED (non-fatal)' }}"
+      - "dtctl install:       {{ 'ok' if dtctl_install is succeeded else 'FAILED/SKIPPED (non-fatal)' }}"
+      - "dtctl configure:     {{ 'ok' if (dtctl_configure.rc | default(1)) == 0 else 'FAILED/SKIPPED (non-fatal)' }}"
+      - "dtctl skill:         {{ 'ok' if (dtctl_skill_install.rc | default(1)) == 0 else 'FAILED/SKIPPED (non-fatal)' }}"
+      - "dynatrace plugin:    {{ 'ok' if dynatrace_plugin_install is succeeded else 'FAILED (non-fatal)' }}"

@@ -1,0 +1,5 @@
+# Dynatrace environment for dtctl and the Dynatrace MCP server (Claude Code plugin).
+export DT_ENVIRONMENT="{{ dynatrace_apps_url }}"
+export DT_PLATFORM_TOKEN="{{ dynatrace_environment_token }}"
+# No OS keyring on this headless host: have dtctl keep its token in files.
+export DTCTL_TOKEN_STORAGE=file

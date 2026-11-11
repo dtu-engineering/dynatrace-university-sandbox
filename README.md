@@ -38,6 +38,12 @@ The sandbox automatically applies several Dynatrace tenant settings to ensure a 
 - **Kubernetes app & Smartscape settings enabled**  
   Enables Kubernetes Platform Monitoring to provide insights into your Kubernetes clusters via the new Kubernetes app
 
+- **Dynatrace Assist (agentic AI) enabled**  
+  Turns on generative and agentic AI so Dynatrace Assist can use tools and run queries on the user's behalf | [docs](https://docs.dynatrace.com/docs/shortlink/agentic-and-generative-ai-getting-started)
+
+- **Dynatrace AI tooling for Claude Code (platform token only)**  
+  Installs [dtctl](https://github.com/dynatrace-oss/dtctl) (Dynatrace CLI, preconfigured with its agent skill) and the [dynatrace-for-ai](https://github.com/Dynatrace/dynatrace-for-ai) Claude Code plugin (Dynatrace skills + MCP server). Access is limited to the scopes of the platform token provided
+
 - **Dynatrace Operator**  
 Automates deployment of Dynatrace components such as OneAgent and ActiveGate | [docs](https://github.com/Dynatrace/dynatrace-operator)
 

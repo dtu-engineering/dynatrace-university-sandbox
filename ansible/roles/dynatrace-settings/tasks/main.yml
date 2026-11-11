@@ -48,8 +48,24 @@
 - name: Enable Kubernetes App and Cluster Monitoring
   include_tasks: kubernetes-monitoring.yml
 
+- name: Enable Dynatrace Assist (generative + agentic AI)
+  include_tasks: agentic-assist.yml
+
 - name: Verify Bedrock access on the instance profile
   include_tasks: bedrock-access-check.yml
 
+- name: Derive the Dynatrace platform (apps) URL from the environment URL
+  ansible.builtin.set_fact:
+    dynatrace_apps_url: >-
+      {{ dynatrace_environment_url
+         | regex_replace('/+$', '')
+         | regex_replace('\.live\.dynatrace\.com', '.apps.dynatrace.com')
+         | regex_replace('\.(sprint|dev)\.dynatracelabs\.com', '.\1.apps.dynatracelabs.com') }}
+  when: dynatrace_use_platform_token
+
 - name: Configure Claude Code CLI for Bedrock
   include_tasks: claude-code-bedrock.yml
+
+- name: Install Dynatrace AI tooling (dtctl + dynatrace-for-ai Claude Code plugin)
+  include_tasks: dynatrace-ai-tooling.yml
+  when: dynatrace_use_platform_token
